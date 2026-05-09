@@ -32,7 +32,7 @@ def main() -> int:
 
     # 初始化传感器和监听器
     sen0 = PTSDK_CXX_Pybind.PTSDKSensor()
-    listener = PTSDK_CXX_Pybind.PTSDKListener(isLogging=False)
+    listener = PTSDK_CXX_Pybind.PTSDKListener(logFlag=False)
     listener.addSensor(sen0)
 
     # 连接并启动监听
