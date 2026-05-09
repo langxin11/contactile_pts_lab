@@ -1,0 +1,13 @@
+int64 tus
+PillarState[] pillars
+float32 gfx
+float32 gfy
+float32 gfz
+float32 gtx
+float32 gty
+float32 gtz
+float32 friction_est
+float32 target_grip_force
+bool is_sd_active
+bool is_ref_loaded
+bool is_contact

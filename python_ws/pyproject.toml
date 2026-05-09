@@ -1,0 +1,23 @@
+[project]
+name = "contactile-pts-lab"
+version = "0.1.0"
+description = "Contactile PTS Lab Python workspace"
+requires-python = "==3.10.*"
+dependencies = [
+    # 原厂 SDK wheel 需手动安装:
+    # uv pip install ../vendor/PythonLIN/ptsdk_cxx_pybind-1.0.2-cp310-cp310-linux_x86_64.whl
+]
+
+[project.optional-dependencies]
+dev = [
+    "typer>=0.12.0",
+    "rich>=13.0.0",
+]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"

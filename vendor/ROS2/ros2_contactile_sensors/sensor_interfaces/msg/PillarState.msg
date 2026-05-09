@@ -1,0 +1,9 @@
+int64 id
+float32 dx
+float32 dy
+float32 dz
+float32 fx
+float32 fy
+float32 fz
+bool in_contact
+int64 slip_state
