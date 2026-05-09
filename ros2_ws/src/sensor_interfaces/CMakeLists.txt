@@ -15,20 +15,17 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# find dependencies
 find_package(ament_cmake REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/PillarState.msg"
   "msg/SensorState.msg"
-  "msg/ButtonSensorState.msg"
   "srv/BiasRequest.srv"
   "srv/StartSlipDetection.srv"
   "srv/StopSlipDetection.srv"
+  DEPENDENCIES std_msgs
 )
 
 if(BUILD_TESTING)

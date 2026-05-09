@@ -9,7 +9,7 @@ Ubuntu 24.04 x86_64 下 Contactile PTS 触觉传感器实验代码库，含 C++ 
 | `vendor/` | 原厂 SDK，**只读** |
 | `cpp_ws/` | C++ 实验区（CMake + Make），入口 `src/minimal_reader.cpp` |
 | `python_ws/` | Python 实验区（uv + Python 3.10），入口 `quick_read.py` |
-| `ros2_ws/` | ROS2 实验区（colcon），入口 `src/ros2_contactile_sensors/` |
+| `ros2_ws/` | ROS2 实验区（colcon），入口 `src/` 下各 ROS2 package |
 | `config/` | YAML 配置文件 |
 | `scripts/` | 一键运行脚本（bash） |
 | `data/` | 实验数据归档（不入 git） |

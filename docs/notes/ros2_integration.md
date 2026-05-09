@@ -21,7 +21,7 @@
 
 ## 2. 包结构
 
-原厂 ROS2 包位于 `vendor/ROS2/ros2_contactile_sensors/`，包含两个子包：
+原厂 ROS2 包位于 `vendor/ROS2/ros2_contactile_sensors/`。本仓库已扁平化到标准 colcon 结构，包直接位于 `ros2_ws/src/` 下。
 
 ### papillarray_ros2_v2（主驱动包）
 
@@ -53,18 +53,15 @@
 ```bash
 cd ~/project/contactile_pts_lab/ros2_ws
 
-# 1. 确保源码在 src/ 中
-# ln -s ../vendor/ROS2/ros2_contactile_sensors ./src/ros2_contactile_sensors
-
-# 2. 先编译接口包
+# 1. 先编译接口包
 colcon build --packages-select sensor_interfaces \
     --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
 
-# 3. 再编译主包
+# 2. 再编译主包
 colcon build --packages-select papillarray_ros2_v2 \
     --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
 
-# 4. 加载环境
+# 3. 加载环境
 source install/setup.bash
 ```
 
@@ -102,7 +99,8 @@ source install/setup.bash
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `tus` | int64 | 控制器时间戳 (µs) |
+| `header` | std_msgs/Header | ROS2 时间戳与 frame_id |
+| `tus` | int64 | 控制器时间戳 (µs)，保留原厂字段名 |
 | `pillars` | PillarState[] | 各柱状态数组 |
 | `gfx` | float32 | 全局 X 力 (N) |
 | `gfy` | float32 | 全局 Y 力 (N) |
@@ -112,8 +110,8 @@ source install/setup.bash
 | `gtz` | float32 | 全局 Z 力矩 (N·mm) |
 | `friction_est` | float32 | 摩擦估计 |
 | `target_grip_force` | float32 | 目标夹持力 (N) |
-| `is_sd_active` | bool | 滑动检测是否激活 |
-| `is_ref_loaded` | bool | 参考柱是否被切向加载 |
+| `is_sd_active` | bool | 滑动检测是否激活，保留原厂字段名 |
+| `is_ref_loaded` | bool | 参考柱是否被切向加载，保留原厂字段名 |
 
 > 力矩参考点为**中心柱 P4 的当前顶端位置**。
 

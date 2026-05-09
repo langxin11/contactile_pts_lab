@@ -1,6 +1,7 @@
 #include "papillarray_ros2_node.hpp"
 
 #include <array>
+#include <chrono>
 
 PapillArrayNode::PapillArrayNode([[maybe_unused]] const rclcpp::NodeOptions &options) : Node("papillarray_ros2_v2_node"), listener_(true) {
 	// listener_ argument: isLogging to .csv file; Log file written to /home/.ros/Logs
@@ -52,7 +53,7 @@ PapillArrayNode::PapillArrayNode([[maybe_unused]] const rclcpp::NodeOptions &opt
 
         // Setup publisher for sensor
         std::string topic = "/hub_" + std::to_string(hub_id_) + "/sensor_" + std::to_string(sensor_id);
-        sensor_pubs_.push_back(this->create_publisher<sensor_interfaces::msg::SensorState>(topic, sampling_rate_));
+        sensor_pubs_.push_back(this->create_publisher<sensor_interfaces::msg::SensorState>(topic, rclcpp::SensorDataQoS()));
     }
 
 	// Start services
@@ -97,6 +98,15 @@ PapillArrayNode::PapillArrayNode([[maybe_unused]] const rclcpp::NodeOptions &opt
 	} else {
 		RCLCPP_INFO(this->get_logger(), "\033[92mSampling rate set to %u\033[0m", sampling_rate_);
 	}
+
+	if (sampling_rate_ > 0) {
+		auto period = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(1.0 / sampling_rate_));
+		update_timer_ = this->create_wall_timer(period, [this]() {
+			updateData();
+		});
+	} else {
+		RCLCPP_ERROR(this->get_logger(), "\033[91mInvalid sampling rate: %d\033[0m", sampling_rate_);
+	}
 }
 
 
@@ -109,11 +119,8 @@ void PapillArrayNode::updateData() {
 		auto ss_msg = std::make_shared<sensor_interfaces::msg::SensorState>();
 
 		// RCLCPP_INFO(this->get_logger(), "N pillars: %d", sensors_[sensor_id]->getNPillar());
-		auto h = std_msgs::msg::Header();
-		auto time = this->now();
-		h.stamp.sec = time.seconds();
-		h.stamp.nanosec = time.nanoseconds();
-		// ss_msg->header = h;
+		ss_msg->header.stamp = this->now();
+		ss_msg->header.frame_id = "hub_" + std::to_string(hub_id_) + "/sensor_" + std::to_string(sensor_id);
 
 		long timestamp_us = sensors_[sensor_id]->getTimestamp_us();
 		ss_msg->tus = timestamp_us;
@@ -192,7 +199,6 @@ bool PapillArrayNode::startSlipDetectionSrvCallback([[maybe_unused]] const std::
                         std::shared_ptr<sensor_interfaces::srv::StartSlipDetection::Response> resp) {
 	RCLCPP_INFO(this->get_logger(), "startSlipDetection callback");
 	resp->result = listener_.startSlipDetection();
-	std::this_thread::sleep_for(std::chrono::milliseconds(100)); // wait
 	return resp->result;
 }
 
@@ -201,7 +207,6 @@ bool PapillArrayNode::stopSlipDetectionSrvCallback([[maybe_unused]] const std::s
                        std::shared_ptr<sensor_interfaces::srv::StopSlipDetection::Response> resp) {
 	RCLCPP_INFO(this->get_logger(), "stopSlipDetection callback");
 	resp->result = listener_.stopSlipDetection();
-	std::this_thread::sleep_for(std::chrono::milliseconds(100)); // wait
 	return resp->result;
 }
 
@@ -209,7 +214,6 @@ bool PapillArrayNode::sendBiasRequestSrvCallback([[maybe_unused]] const std::sha
                      std::shared_ptr<sensor_interfaces::srv::BiasRequest::Response> resp) {
 	RCLCPP_INFO(this->get_logger(), "sendBiasRequest callback");
 	resp->result = listener_.sendBiasRequest();
-	std::this_thread::sleep_for(std::chrono::milliseconds(100)); // wait
 	return resp->result;
 }
 
@@ -217,14 +221,7 @@ bool PapillArrayNode::sendBiasRequestSrvCallback([[maybe_unused]] const std::sha
 int main(int argc, char *argv[]) {
     rclcpp::init(argc, argv);
     auto node = std::make_shared<PapillArrayNode>(rclcpp::NodeOptions());
-
-    rclcpp::Rate loop_rate(node->getSamplingRate());
-
-    while (rclcpp::ok()) {
-        rclcpp::spin_some(node);
-        loop_rate.sleep();
-        node->updateData(); // Update sensor data and publish
-    }
+    rclcpp::spin(node);
 
     rclcpp::shutdown();
 

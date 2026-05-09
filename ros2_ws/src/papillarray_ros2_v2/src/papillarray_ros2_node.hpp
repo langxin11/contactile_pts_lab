@@ -48,9 +48,6 @@ public:
     // Update sensor data and publish
     void updateData();
 
-    // Get the sampling rate
-    int getSamplingRate(){ return sampling_rate_; };
-
 private:
     int hub_id_;
 
@@ -68,6 +65,7 @@ private:
 
     // Sensor publishers
     std::vector<rclcpp::Publisher<sensor_interfaces::msg::SensorState>::SharedPtr> sensor_pubs_;
+    rclcpp::TimerBase::SharedPtr update_timer_;
 
     // Services
     rclcpp::Service<sensor_interfaces::srv::StartSlipDetection>::SharedPtr start_sd_srv_;
@@ -82,8 +80,6 @@ private:
     bool sendBiasRequestSrvCallback([[maybe_unused]] const std::shared_ptr<sensor_interfaces::srv::BiasRequest::Request> request,
                     std::shared_ptr<sensor_interfaces::srv::BiasRequest::Response> response);
 
-    // Load parameters from launch file
-    void loadParams(const rclcpp::NodeOptions & options);
 };
 
 #endif // PAPILLARRAY_ROS2_V2_NODE_H_

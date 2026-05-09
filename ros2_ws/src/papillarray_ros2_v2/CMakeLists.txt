@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.8)
 project(papillarray_ros2_v2)
 
 # Default to C99
@@ -6,9 +6,9 @@ if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
 endif()
 
-# Default to C++14
+# Default to C++17
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 17)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -21,23 +21,15 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_interfaces REQUIRED)
 
-# Add include directories for custom headers
-include_directories(
-    include
-    lib
-)
-
 add_executable(papillarray_ros2_node src/papillarray_ros2_node.cpp)
 
-# Link the necessary libraries
-target_link_libraries(papillarray_ros2_node
-    ${ament_LIBRARIES}
-    ${rclcpp_LIBRARIES}
-    ${std_msgs_LIBRARIES}
-    ${sensor_interfaces_LIBRARIES}
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/libPTSDK.a
+target_include_directories(papillarray_ros2_node PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
 
+target_link_libraries(papillarray_ros2_node
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/libPTSDK.a
+)
 ament_target_dependencies(papillarray_ros2_node rclcpp std_msgs sensor_interfaces)
 
 install(TARGETS 
@@ -56,4 +48,3 @@ if(BUILD_TESTING)
 endif()
 
 ament_package()
-
