@@ -24,11 +24,12 @@ fi
 # 2. 检查用户权限
 echo ""
 echo "[2/3] 检查用户权限..."
-if groups "$USER" | grep -q '\bdialout\b'; then
-    echo "  ✓ 用户 $USER 已在 dialout 组"
+CURRENT_USER="${USER:-$(id -un)}"
+if groups "${CURRENT_USER}" | grep -q '\bdialout\b'; then
+    echo "  ✓ 用户 ${CURRENT_USER} 已在 dialout 组"
 else
-    echo "  ✗ 用户 $USER 不在 dialout 组"
-    echo "    解决方法: sudo usermod -aG dialout $USER"
+    echo "  ✗ 用户 ${CURRENT_USER} 不在 dialout 组"
+    echo "    解决方法: sudo usermod -aG dialout ${CURRENT_USER}"
     echo "    然后注销并重新登录"
     exit 1
 fi
