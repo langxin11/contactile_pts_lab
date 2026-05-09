@@ -58,9 +58,14 @@ else
     uv venv --python 3.10 .venv
 fi
 
-# 安装原厂 wheel
-echo "  正在安装 ptsdk_cxx_pybind..."
-uv pip install --python .venv/bin/python "${PROJECT_ROOT}/vendor/PythonLIN/ptsdk_cxx_pybind-1.0.2-cp310-cp310-linux_x86_64.whl"
+# 同步 Python 依赖（包含原厂 wheel、DearPyGui、Typer）
+echo "  正在同步 Python 依赖..."
+uv sync
+
+if ! .venv/bin/python -c "import dearpygui" >/dev/null 2>&1; then
+    echo "  ⚠ 未找到 Python 可视化依赖 DearPyGui"
+    echo "     如需 GUI，请运行: cd python_ws && uv sync"
+fi
 
 echo "  ✓ Python 环境就绪"
 echo "     激活方式: source python_ws/.venv/bin/activate"
@@ -73,10 +78,6 @@ echo "[4/4] 编译 ROS2 工作区..."
 
 if command -v colcon >/dev/null 2>&1; then
     cd "${PROJECT_ROOT}/ros2_ws"
-    # 创建 src 中的 symlink（如果不存在）
-    if [ ! -L "${PROJECT_ROOT}/ros2_ws/src/ros2_contactile_sensors" ] && [ ! -d "${PROJECT_ROOT}/ros2_ws/src/ros2_contactile_sensors" ]; then
-        ln -s "${PROJECT_ROOT}/vendor/ROS2/ros2_contactile_sensors" "${PROJECT_ROOT}/ros2_ws/src/ros2_contactile_sensors"
-    fi
     colcon build --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
     echo "  ✓ ROS2 编译完成"
 else
@@ -96,4 +97,5 @@ echo "  2. 运行 C++:   bash scripts/run_cpp.sh"
 echo "  3. 运行 Python: bash scripts/run_python.sh"
 echo "  4. 运行 ROS2:  bash scripts/run_ros2.sh --mock"
 echo "                bash scripts/run_ros2.sh --real"
+echo "  5. 可视化 GUI: bash scripts/run_python.sh pts_vis"
 echo ""

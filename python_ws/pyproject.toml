@@ -4,8 +4,9 @@ version = "0.1.0"
 description = "Contactile PTS Lab Python workspace"
 requires-python = "==3.10.*"
 dependencies = [
-    # 原厂 SDK wheel 需手动安装:
-    # uv pip install ../vendor/PythonLIN/ptsdk_cxx_pybind-1.0.2-cp310-cp310-linux_x86_64.whl
+    "dearpygui>=2.3.1",
+    "ptsdk-cxx-pybind",
+    "typer>=0.25.1",
 ]
 
 [project.optional-dependencies]
@@ -21,3 +22,13 @@ ignore = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.uv.sources]
+ptsdk-cxx-pybind = { path = "../vendor/PythonLIN/ptsdk_cxx_pybind-1.0.2-cp310-cp310-linux_x86_64.whl" }
+
+[dependency-groups]
+dev = [
+    "furo>=2025.12.19",
+    "myst-parser>=4.0.1",
+    "sphinx>=8.1.3",
+]
