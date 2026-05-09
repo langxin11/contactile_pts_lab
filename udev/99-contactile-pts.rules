@@ -1,0 +1,8 @@
+# Contactile PTS 传感器 udev 规则
+# 为 USB 串口设备赋予 dialout 组权限，避免每次 sudo
+
+# Contactile PTS / DEV001 类设备 (USB CDC ACM)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", MODE="0660", GROUP="dialout", SYMLINK+="contactile_pts"
+
+# 通用 ACM 设备（如果上述 VID/PID 不匹配）
+SUBSYSTEM=="tty", KERNEL=="ttyACM[0-9]*", MODE="0660", GROUP="dialout"

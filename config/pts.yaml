@@ -1,0 +1,33 @@
+# Contactile PTS 传感器配置
+# 修改此文件后，脚本会自动读取，无需改代码
+
+sensor:
+  # 串口设备
+  port: "/dev/ttyACM0"
+
+  # 波特率
+  # C++ / ROS2 默认 9600，Python 默认 115200
+  baud_rate: 9600
+
+  # 连接的传感器数量 (1 或 2)
+  sensor_count: 1
+
+  # 数据位、校验位 (C++ 使用)
+  parity: 0
+  byte_size: 8
+
+  # 是否 flush 硬件输入缓冲区
+  flush: true
+
+  # 采样率: SAMP_RATE_100 或 SAMP_RATE_500
+  sampling_rate: "SAMP_RATE_500"
+
+  # 启动时是否自动 Bias（零点校准）
+  bias_on_startup: true
+
+paths:
+  # 数据输出目录
+  data_dir: "./data"
+
+  # 日志目录
+  log_dir: "./data/logs"

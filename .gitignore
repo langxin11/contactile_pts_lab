@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+ENV/
+env/
+
+# C++
+build/
+cmake-build-*/
+*.o
+*.a
+*.so
+*.exe
+
+# ROS2
+install/
+log/
+*.pyc
+
+# Data (experiment outputs)
+data/*
+!data/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# uv
+.uv/
