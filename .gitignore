@@ -38,3 +38,5 @@ Thumbs.db
 
 # uv
 .uv/
+docs/_build/
+ros2_ws/Logs/
