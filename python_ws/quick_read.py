@@ -23,6 +23,7 @@ DEFAULT_RATE_HZ = 500
 DEFAULT_SAMPLES = 100
 DEFAULT_SENSOR_INDEX = 0
 DEFAULT_SENSOR_COUNT = 2
+DEFAULT_REGISTERED_SENSOR_IDS = (0, 1)
 DEFAULT_TIMEOUT_SEC = 5.0
 
 # SDK 要求 byteSize 传 char；传整数 8 会导致 pybind 参数不匹配。
@@ -115,12 +116,14 @@ def run_quick_read(
         typer.secho(f"错误: 设备 {port} 不存在，请检查连接和权限", err=True)
         return 1
 
-    # Workaround for vendor bug: 这个 hub 的帧包含 SEN0/SEN1，只注册一个会触发 pybind 崩溃。
-    sensors = [PTSDK_CXX_Pybind.PTSDKSensor() for _ in range(DEFAULT_SENSOR_COUNT)]
+    # Workaround for vendor bug: 当前 hub 默认输出 SEN0/SEN1，两者都注册才能避免 pybind 崩溃。
+    sen0 = PTSDK_CXX_Pybind.PTSDKSensor()
+    sen1 = PTSDK_CXX_Pybind.PTSDKSensor()
+    sensors = (sen0, sen1)
     sensor = sensors[sensor_index]
     listener = PTSDK_CXX_Pybind.PTSDKListener(logFlag=False)
-    for sdk_sensor in sensors:
-        listener.addSensor(sdk_sensor)
+    for registered_sensor_id in DEFAULT_REGISTERED_SENSOR_IDS:
+        listener.addSensor(sensors[registered_sensor_id])
     connected = False
 
     try:

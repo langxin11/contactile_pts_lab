@@ -1,6 +1,6 @@
 // minimal_reader.cpp
 // Contactile PTS 最简 C++ 读取示例
-// 基于原厂 SDK，单传感器、单线程、打印 XYZ 全局力
+// 基于原厂 SDK，读取 SEN0 的 XYZ 全局力
 
 // 兼容性修复头文件，必须在所有 vendor 头文件之前包含
 #include "ptsdk_compat.h"
@@ -27,8 +27,11 @@ int main(int argc, char* argv[]) {
 
     // 初始化传感器和监听器
     PTSDKSensor sen0;
+    PTSDKSensor sen1;
     PTSDKListener listener(/* isLogging */ false);
+    // Workaround for vendor bug: 当前 hub 帧包含 SEN0/SEN1，只注册 SEN0 会触发 SDK 越界崩溃。
     listener.addSensor(&sen0);  // 必须传指针
+    listener.addSensor(&sen1);
 
     // 连接串口并开始监听
     int res = listener.connectAndStartListening(port, baudRate, parity, byteSize, isFlush);
