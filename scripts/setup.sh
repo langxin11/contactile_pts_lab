@@ -38,10 +38,10 @@ make -j"$(nproc)"
 echo "  ✓ C++ 编译完成，可执行文件位于 cpp_ws/build/minimal_reader"
 
 # ------------------------------------------------------------------
-# 3. 初始化 Python 虚拟环境 (Python 3.10，适配 wheel)
+# 3. 初始化 Python 虚拟环境（完整环境包含原厂 cp310 wheel）
 # ------------------------------------------------------------------
 echo ""
-echo "[3/4] 初始化 Python 虚拟环境 (Python 3.10)..."
+echo "[3/4] 初始化 Python 虚拟环境（Python 3.10，包含两种读取方式）..."
 
 cd "${PROJECT_ROOT}/python_ws"
 
@@ -58,13 +58,13 @@ else
     uv venv --python 3.10 .venv
 fi
 
-# 同步 Python 依赖（包含原厂 wheel、DearPyGui、Typer）
+# 同步完整依赖；纯串口方式也可单独执行 uv sync，不安装原厂 wheel。
 echo "  正在同步 Python 依赖..."
-uv sync
+uv sync --extra sdk --extra gui
 
 if ! .venv/bin/python -c "import dearpygui" >/dev/null 2>&1; then
     echo "  ⚠ 未找到 Python 可视化依赖 DearPyGui"
-    echo "     如需 GUI，请运行: cd python_ws && uv sync"
+    echo "     如需 GUI，请运行: cd python_ws && uv sync --extra gui"
 fi
 
 echo "  ✓ Python 环境就绪"
@@ -94,8 +94,8 @@ echo ""
 echo "后续步骤:"
 echo "  1. 检查硬件:   bash scripts/check_usb.sh"
 echo "  2. 运行 C++:   bash scripts/run_cpp.sh"
-echo "  3. 运行 Python: bash scripts/run_python.sh"
+echo "  3. 运行 Python: bash scripts/run_python.sh quick_read_serial"
 echo "  4. 运行 ROS2:  bash scripts/run_ros2.sh --mock"
 echo "                bash scripts/run_ros2.sh --real"
-echo "  5. 可视化 GUI: bash scripts/run_python.sh pts_vis"
+echo "  5. 可视化 GUI: bash scripts/run_python.sh pts_vis（需 gui extra）"
 echo ""

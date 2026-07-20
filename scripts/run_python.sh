@@ -3,7 +3,7 @@ set -euo pipefail
 
 # 运行 Python 示例程序
 # 用法: bash scripts/run_python.sh [script_name] [extra_args]
-# 示例: bash scripts/run_python.sh quick_read
+# 示例: bash scripts/run_python.sh quick_read_serial
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -17,7 +17,7 @@ if [ ! -f "${VENV_PYTHON}" ]; then
     exit 1
 fi
 
-SCRIPT_NAME="${1:-quick_read.py}"
+SCRIPT_NAME="${1:-quick_read_serial.py}"
 shift || true
 
 # 自动补全 .py 后缀

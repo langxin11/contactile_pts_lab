@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Contactile PTS 最简 Python 读取示例.
+"""通过原厂 Python wheel 读取 Contactile PTS 的最简示例。
 
 运行前请确保已激活虚拟环境:
     source python_ws/.venv/bin/activate
-    python quick_read.py --help
+    python quick_read_sdk.py --help
 
 或直接使用脚本:
-    bash scripts/run_python.sh quick_read --help
+    bash scripts/run_python.sh quick_read_sdk --help
 """
 
 import os

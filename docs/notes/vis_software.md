@@ -106,6 +106,6 @@ PTSVIS 是原厂提供的 **Java GUI 可视化软件**，用于：
 
 由于 PTSVIS 无 Linux 版本，建议：
 
-1. **快速验证**：使用 `cpp_ws/minimal_reader` 或 `python_ws/quick_read` 打印数据
+1. **快速验证**：使用 `cpp_ws/minimal_reader` 或 `python_ws/quick_read_sdk.py` 打印数据
 2. **实时可视化**：基于 Python (matplotlib/plotly) 或 ROS2 (rviz/rqt) 自行开发可视化
 3. **数据记录**：SDK 的 `isLogging=True` 会生成与 PTSVIS 格式相同的 CSV

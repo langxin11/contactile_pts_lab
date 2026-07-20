@@ -41,20 +41,43 @@ bash scripts/check_usb.sh
 # C++
 bash scripts/run_cpp.sh
 
-# Python
-bash scripts/run_python.sh quick_read
+# Python：纯串口协议（默认，不依赖原厂 wheel）
+bash scripts/run_python.sh quick_read_serial
+
+# Python：原厂 wheel
+bash scripts/run_python.sh quick_read_sdk
 
 # ROS2
 bash scripts/run_ros2.sh --real
 ```
 
+## Python 两种读取方式
+
+```bash
+cd python_ws
+
+# 纯串口协议：不安装原厂 wheel
+uv sync
+uv run python quick_read_serial.py --help
+
+# 原厂 SDK：安装 cp310 wheel
+uv sync --extra sdk
+uv run --extra sdk python quick_read_sdk.py --help
+
+# GUI 同时依赖原厂 wheel
+uv sync --extra gui
+uv run --extra gui python pts_vis.py --help
+```
+
+`pts_protocol_compare.py` 用于让两种实现读取同一批字节并进行对照验证，不作为日常读取入口。
+
 ## 三条链路对比
 
 | | C++ | Python | ROS2 |
 |------|-----|--------|------|
-| 入口 | `cpp_ws/src/minimal_reader.cpp` | `python_ws/quick_read.py` | ROS2 topic |
-| SDK | `libPTSDK.a` + 头文件 | `cp310` wheel | 同 C++ |
-| Python 版本 | — | 3.10 (wheel 约束) | 系统 3.12 |
+| 入口 | `cpp_ws/src/minimal_reader.cpp` | `quick_read_serial.py` 或 `quick_read_sdk.py` | ROS2 topic |
+| SDK | `libPTSDK.a` + 头文件 | 纯 `pyserial` 协议或 `cp310` wheel | 同 C++ |
+| Python 版本 | — | 纯串口 >=3.10；wheel 为 3.10 | 系统 3.12 |
 | 波特率 | 9600 | 115200 | 9600 |
 | 适用场景 | 最低延迟, 嵌入式部署 | 快速原型, 数据分析 | 机器人系统集成 |
 
