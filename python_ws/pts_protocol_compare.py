@@ -55,11 +55,7 @@ if typer is not None:
     _RATE_OPTION = typer.Option("--rate", "-r", help="控制器采样率 Hz")
     _DURATION_OPTION = typer.Option("--duration", "-d", help="抓包持续时间 s")
     _SENSOR_COUNT_OPTION = typer.Option("--sensor-count", help="默认注册的传感器数")
-    _BIAS_OPTION = typer.Option("--bias", help="抓包前是否执行 bias")
-    _CONFIRM_NO_LOAD_OPTION = typer.Option(
-        "--confirm-no-load",
-        help="确认 bias 前传感器无负载",
-    )
+    _BIAS_OPTION = typer.Option("--bias", help="抓包前执行 bias，须确保传感器无负载")
     _TIMEOUT_OPTION = typer.Option("--timeout", help="等待首帧超时时间 s")
     _ABS_TOL_OPTION = typer.Option("--abs-tol", help="协议值与 SDK CSV 的绝对误差容忍")
     _OUTPUT_ROOT_OPTION = typer.Option("--output-root", help="对照产物输出根目录")
@@ -72,7 +68,6 @@ else:  # pragma: no cover - 仅用于离线导入辅助函数
     _DURATION_OPTION = None
     _SENSOR_COUNT_OPTION = None
     _BIAS_OPTION = None
-    _CONFIRM_NO_LOAD_OPTION = None
     _TIMEOUT_OPTION = None
     _ABS_TOL_OPTION = None
     _OUTPUT_ROOT_OPTION = None
@@ -423,15 +418,12 @@ def run_protocol_compare(
     duration_sec: float,
     sensor_count: int,
     bias: bool,
-    confirm_no_load: bool,
     timeout_sec: float,
     abs_tol: float,
     output_root: pathlib.Path,
     log_dir: pathlib.Path,
 ) -> ComparisonArtifacts:
     """执行一次真实抓包对照，并产出原始字节、协议 CSV、SDK CSV 与摘要。"""
-    if bias and not confirm_no_load:
-        raise ValueError("bias 前必须显式添加 --confirm-no-load")
     if sensor_count != DEFAULT_SENSOR_COUNT:
         raise ValueError(
             f"当前 hub 默认输出 SEN0/SEN1，对照脚本暂只支持 sensor_count={DEFAULT_SENSOR_COUNT}"
@@ -549,7 +541,6 @@ def compare(
     duration: Annotated[float, _DURATION_OPTION] = DEFAULT_DURATION_SEC,
     sensor_count: Annotated[int, _SENSOR_COUNT_OPTION] = DEFAULT_SENSOR_COUNT,
     bias: Annotated[bool, _BIAS_OPTION] = False,
-    confirm_no_load: Annotated[bool, _CONFIRM_NO_LOAD_OPTION] = False,
     timeout: Annotated[float, _TIMEOUT_OPTION] = DEFAULT_TIMEOUT_SEC,
     abs_tol: Annotated[float, _ABS_TOL_OPTION] = DEFAULT_ABS_TOL,
     output_root: Annotated[pathlib.Path, _OUTPUT_ROOT_OPTION] = DEFAULT_OUTPUT_ROOT,
@@ -565,7 +556,6 @@ def compare(
             duration_sec=duration,
             sensor_count=sensor_count,
             bias=bias,
-            confirm_no_load=confirm_no_load,
             timeout_sec=timeout,
             abs_tol=abs_tol,
             output_root=output_root,

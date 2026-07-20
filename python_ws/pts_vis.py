@@ -122,7 +122,6 @@ class PtsSession:
         sensor_index: int,
         *,
         bias: bool,
-        confirm_no_load: bool,
     ) -> None:
         """初始化会话参数。
 
@@ -130,17 +129,13 @@ class PtsSession:
             port: 串口设备路径。
             rate_hz: 控制器采样率，单位 Hz，可选 100/250/500/1000。
             sensor_index: 传感器索引，范围 0..3。
-            bias: 是否发送 SDK bias 请求。
-            confirm_no_load: 是否确认无负载，用于授权 bias。
+            bias: 是否发送 SDK bias 请求，执行前须确保传感器无负载。
 
         Raises:
-            ValueError: 参数越界或危险 bias 未确认时抛出。
+            ValueError: 参数越界时抛出。
         """
         if not 0 <= sensor_index < PTS_MAX_SENSORS:
             raise ValueError(f"sensor 必须在 0..{PTS_MAX_SENSORS - 1} 之间")
-        if bias and not confirm_no_load:
-            raise ValueError("bias 校准前必须添加 --confirm-no-load")
-
         self.port = port
         self.rate_hz = rate_hz
         self.sensor_index = sensor_index
@@ -271,7 +266,6 @@ def acquisition_worker(
     rate_hz: int,
     sensor_index: int,
     bias: bool,
-    confirm_no_load: bool,
     state: LiveState,
 ) -> None:
     """后台采集线程。
@@ -280,8 +274,7 @@ def acquisition_worker(
         port: 串口设备路径。
         rate_hz: 控制器采样率，单位 Hz。
         sensor_index: 传感器索引。
-        bias: 是否发送 SDK bias 请求。
-        confirm_no_load: 是否确认无负载。
+        bias: 是否发送 SDK bias 请求，执行前须确保传感器无负载。
         state: GUI 共享状态。
 
     Returns:
@@ -296,7 +289,6 @@ def acquisition_worker(
             rate_hz,
             sensor_index,
             bias=bias,
-            confirm_no_load=confirm_no_load,
         ) as session:
             while not state.stop.is_set():
                 state.append(session.next_sample())
@@ -508,7 +500,6 @@ def run_live(
     height: int,
     font_size: int,
     bias: bool,
-    confirm_no_load: bool,
 ) -> None:
     """启动 DearPyGui 实时曲线查看器。
 
@@ -521,8 +512,7 @@ def run_live(
         width: 窗口宽度，单位 px。
         height: 窗口高度，单位 px。
         font_size: 字体大小，单位 px。
-        bias: 是否发送 SDK bias 请求。
-        confirm_no_load: 是否确认无负载。
+        bias: 是否发送 SDK bias 请求，执行前须确保传感器无负载。
 
     Returns:
         None。
@@ -534,7 +524,7 @@ def run_live(
     state = LiveState(max_samples=max_samples)
     worker = threading.Thread(
         target=acquisition_worker,
-        args=(port, rate_hz, sensor_index, bias, confirm_no_load, state),
+        args=(port, rate_hz, sensor_index, bias, state),
         daemon=True,
     )
     worker.start()
@@ -591,7 +581,6 @@ def main(
     view: Annotated[ViewMode, typer.Option("--view", "-v")] = DEFAULT_VIEW,
     window_sec: Annotated[float, typer.Option("--window", "-w", min=1.0)] = DEFAULT_WINDOW_SEC,
     bias: Annotated[bool, typer.Option("--bias/--no-bias")] = False,
-    confirm_no_load: Annotated[bool, typer.Option("--confirm-no-load")] = False,
 ) -> None:
     """启动 PTS Python SDK + DearPyGui 实时曲线查看器。
 
@@ -601,8 +590,7 @@ def main(
         sensor_index: 传感器索引。
         view: 显示内容，`displacement`、`force` 或 `global`。
         window_sec: 曲线显示窗口，单位 s。
-        bias: 是否发送 SDK bias 请求。
-        confirm_no_load: 是否确认无负载。
+        bias: 是否发送 SDK bias 请求，执行前须确保传感器无负载。
 
     Returns:
         None。
@@ -612,9 +600,6 @@ def main(
     """
     if rate_hz not in {100, 250, 500, 1000}:
         raise typer.BadParameter("--rate 仅支持 100/250/500/1000")
-    if bias and not confirm_no_load:
-        raise typer.BadParameter("--bias 必须同时添加 --confirm-no-load")
-
     run_live(
         port=port,
         rate_hz=rate_hz,
@@ -625,7 +610,6 @@ def main(
         height=DEFAULT_HEIGHT,
         font_size=DEFAULT_FONT_SIZE,
         bias=bias,
-        confirm_no_load=confirm_no_load,
     )
 
 

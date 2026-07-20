@@ -114,7 +114,6 @@ def read(
 - CLI 只解析参数和错误退出，业务逻辑下沉到普通函数
 - `Argument` = 必须给出的主要对象；`Option` = 可选配置
 - 串口用 `str`（`Path` 校验会误杀字符设备），内部显式检查存在性
-- bias 等危险操作必须显式确认参数（如 `--confirm-no-load`），否则拒绝执行
 - 输出：`echo()` 普通信息，`secho(..., err=True)` 错误
 - 捕获 `PermissionError`（提示 dialout 组）、`KeyboardInterrupt`（释放串口）
 - 测试用 `CliRunner`，默认 `--mock`，不依赖硬件

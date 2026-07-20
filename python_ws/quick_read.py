@@ -85,7 +85,6 @@ def run_quick_read(
     samples: int,
     sensor_index: int,
     bias: bool,
-    confirm_no_load: bool,
     timeout_sec: float,
 ) -> int:
     """连接 PTS 控制器并打印全局三轴力。
@@ -96,8 +95,7 @@ def run_quick_read(
         rate_hz: 控制器采样率，单位 Hz。
         samples: 读取样本数。
         sensor_index: 传感器索引，范围 0..1。
-        bias: 是否发送 bias 零点校准请求。
-        confirm_no_load: 是否确认传感器无负载，用于授权 bias。
+        bias: 是否发送 bias 零点校准请求，执行前须确保传感器无负载。
         timeout_sec: 首帧等待超时时间，单位 s。
 
     Returns:
@@ -106,9 +104,6 @@ def run_quick_read(
     Raises:
         None。
     """
-    if bias and not confirm_no_load:
-        typer.secho("错误: bias 前必须确认传感器无负载，请添加 --confirm-no-load", err=True)
-        return 1
     if not 0 <= sensor_index < DEFAULT_SENSOR_COUNT:
         typer.secho(f"错误: sensor 必须在 0..{DEFAULT_SENSOR_COUNT - 1} 之间", err=True)
         return 1
@@ -181,7 +176,6 @@ def main(
     samples: Annotated[int, typer.Option("--samples", "-n")] = DEFAULT_SAMPLES,
     sensor_index: Annotated[int, typer.Option("--sensor", "-s")] = DEFAULT_SENSOR_INDEX,
     bias: Annotated[bool, typer.Option("--bias")] = False,
-    confirm_no_load: Annotated[bool, typer.Option("--confirm-no-load")] = False,
     timeout_sec: Annotated[float, typer.Option("--timeout")] = DEFAULT_TIMEOUT_SEC,
 ) -> None:
     """读取传感器全局三轴力，物理量单位为 N，坐标系为 sensor frame。"""
@@ -193,7 +187,6 @@ def main(
             samples,
             sensor_index,
             bias,
-            confirm_no_load,
             timeout_sec,
         )
     )
