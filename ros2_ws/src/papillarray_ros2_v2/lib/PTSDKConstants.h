@@ -1,42 +1,64 @@
+// ============================================================
+// PTSDKConstants.h — PTSDK 常量定义
+//
+// 定义 PapillArray 传感器 SDK 中使用的全局常量，
+// 包括维度索引、传感器/触点数量上限、滑动状态枚举、
+// 采样频率选项等。被驱动节点和 SDK 库共同引用。
+// ============================================================
+
 #ifndef PTSDKCONTANTS_H
 #define PTSDKCONTANTS_H
 
-/* Input and output parameters */
+/* ================================================================
+   宏标记：标注函数参数的输入/输出方向，用于提高代码可读性
+   ================================================================ */
+#define IN        // 标记该参数为输入参数
+#define OUT       // 标记该参数为输出参数
 
-#define IN					// Indicates that a parameter is an input parameter.
-#define OUT					// Indicates that a parameter is an output parameter.
+/* ================================================================
+   维度索引常量
+   X/Y/Z 分别对应数组索引 0/1/2，NDIM = 3 表示三维空间
+   用法示例: force[X_IND] 获取 X 方向的力分量
+   ================================================================ */
+#define X_IND    0   // X 方向索引
+#define Y_IND    1   // Y 方向索引
+#define Z_IND    2   // Z 方向索引
+#define NDIM     3   // 空间维度数 (3D)
 
-/* Constants related to dimensions*/
+/* ================================================================
+   硬件数量上限
+   ================================================================ */
+#define MAX_NSENSOR  4   // 单个集线器最多连接的传感器数量
+#define MAX_NPILLAR  25  // 单个传感器上最多的触点 (pillar) 数量
 
-#define X_IND			0		// The index of the X-dimension.
-#define Y_IND			1		// The index of the Y-dimension.
-#define Z_IND			2		// The index of the Z-dimension.
-#define NDIM			3		// The number of dimensions
+/* ================================================================
+   接触检测与滑动状态常量
+   用于 PillarState.slip_state 字段，标识各触点的滑动状态
+   ================================================================ */
+#define CONTACT_THRESH  0.5   // 法向力接触判定阈值 (N)
 
-/* Constants related to sensor and pillars */
+// ---- 滑动状态枚举 ----
+#define INELIGIBLE       -2   // 滑动检测启动时该 pillar 未接触，不参与检测
+#define LOST_CONTACT     -1   // 启动时在接触，过程中失去接触
+#define CONTACT_AT_START  1   // 滑动检测启动时处于接触状态 (基准状态)
+#define TLOADING          2   // 接触中且正在承受切向载荷
+#define SLIPPED           3   // 已发生滑动
 
-#define MAX_NSENSOR		4		// The maximum number of sensors connected to the communication hub
-#define MAX_NPILLAR		25		// The maximum number of pillars in a sensor
+// ---- 摩擦估计 ----
+#define NOFRICTIONEST  -1    // 摩擦系数估计值的无效标记 (当前无可用估计)
 
-/* Constants related to slip detection and friction estimation */
+/* ================================================================
+   采样频率选项 (Hz)
+   传感器支持以下固定采样频率
+   ================================================================ */
+#define SAMP_RATE_100   100   // 100 Hz 采样
+#define SAMP_RATE_250   250   // 250 Hz 采样
+#define SAMP_RATE_500   500   // 500 Hz 采样
+#define SAMP_RATE_1000  1000  // 1000 Hz 采样
 
-#define CONTACT_THRESH		0.5		// Normal force threshold for contact
-#define INELIGIBLE			-2		// Slip state: pillar was not in contact when slip detection started
-#define CONTACT_AT_START	1		// Slip state: pillar was in contact when slip detection started
-#define LOST_CONTACT		-1		// Slip state: pillar was in contact when slip detection started, but has lost contact
-#define TLOADING			2		// Slip state: pillar was in contact when slip detection started and is being loaded tangentially
-#define SLIPPED				3		// Slip state: pillar was in contact when slip detection started and has slipped
-#define NOFRICTIONEST		-1		// Value of friction estimate when there is no friction estimate
-
-/* Constants related to Controller sampling rate */
-
-#define SAMP_RATE_100		100		// Constant representing 100 Hz sampling rate
-#define SAMP_RATE_250		250		// Constant representing 250 Hz sampling rate
-#define SAMP_RATE_500		500		// Constant representing 500 Hz sampling rate
-#define SAMP_RATE_1000		1000	// Constant representing 1000 Hz sampling rate
-
-/* ----------------------------- */
-
-#define ISDEBUGOUTPUT		0
+/* ================================================================
+   调试开关: 设为 1 开启调试输出，0 关闭
+   ================================================================ */
+#define ISDEBUGOUTPUT  0
 
 #endif
