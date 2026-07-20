@@ -1,0 +1,36 @@
+# 质量—法向压力准确性实验配置
+connection:
+  # 串口设备决定实际连接的控制器。
+  port: "/dev/ttyACM0"
+  baud_rate: 115200
+  rate_hz: 500
+  sensor_index: 0
+
+measurement:
+  # sensor frame 中作为法向的轴。
+  normal_axis: "z"
+  # 如果受压时原始法向力为负数，将此项改为 -1。
+  compression_sign: 1
+  # 默认待测实际质量，单位 g；重复值表示在相同质量下重复测量。
+  target_masses_g: [39, 50, 59, 100, 150, 200, 250, 300,409, 500]
+
+stability:
+  # 最近窗口同时满足标准差和漂移阈值时，记录该窗口均值。
+  window_sec: 2.0
+  timeout_sec: 15.0
+  std_threshold_n: 0.02
+  drift_threshold_n_per_sec: 0.01
+
+output:
+  # 相对路径以本 YAML 所在目录为基准。
+  directory: "../data/force_accuracy"
+
+plot:
+  # 测量脚本释放串口后，在独立进程中调用绘图脚本。
+  auto: true
+  styles: ["science", "ieee", "no-latex"]
+  dpi: 300
+  filename: "mass_vs_normal_force.png"
+  marker_size: 2.5
+  # 仅用 included=true 的记录绘制线性最小二乘拟合与 R²。
+  fit: true

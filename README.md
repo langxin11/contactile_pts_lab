@@ -69,7 +69,50 @@ uv sync --extra gui
 uv run --extra gui python pts_vis.py --help
 ```
 
-`pts_protocol_compare.py` 用于让两种实现读取同一批字节并进行对照验证，不作为日常读取入口。
+`pts_protocol_compare.py` 提供串口中继与离线协议解析能力，让两种实现读取同一批字节，
+不作为日常读取入口。
+
+### 质量—法向压力准确性实验
+
+测量与绘图已解耦。默认配置会在测量结束并释放串口后，以独立子进程自动调用绘图钩子：
+
+```bash
+cd python_ws
+uv run --extra experiment python force_accuracy_measure.py \
+  --config ../config/force_accuracy.yaml
+```
+
+如只采集 CSV，把 YAML 中的 `plot.auto` 改为 `false`，然后运行：
+
+```bash
+uv run --extra measurement python force_accuracy_measure.py \
+  --config ../config/force_accuracy.yaml
+```
+
+每次测量都会创建独立的时间戳会话目录。已有 CSV 可以随时单独重绘，例如：
+
+```bash
+uv run --extra plot python force_accuracy_plot.py \
+  ../data/force_accuracy/20260720_120000_000000/measurements.csv \
+  --config ../config/force_accuracy.yaml
+```
+
+测量脚本从 YAML 读取串口、传感器和稳定判据。真实串口字节会被中继给官方 SDK，
+同时原样保存为 `capture_raw.bin`；测量结束后，自研串口解析器按相同的控制器时间戳稳定窗口
+离线计算第二组结果，因此两条链路比较的是同一次放置、同一批数据，而不是两次独立实验。
+`measurements.csv` 同时保存 SDK、自研协议及两者差值，图中以圆点表示 `Official SDK`，
+空心方块表示 `Serial protocol`。
+
+每个质量点都会原子更新 CSV。输入 `q` 并回车后，脚本先保存数据、释放串口，再按
+`plot.auto` 调用绘图脚本；绘图失败只会输出警告，不影响 CSV。原厂 SDK 的
+`INF: Still sampling...` 会被过滤，其他警告和错误保留。绘图采用 SciencePlots 的 IEEE
+单栏样式。
+
+若发现质量放错或物体放置错误，可在下一次输入或放置确认时输入 `u` 撤销最近一条有效记录，
+或输入 `d <记录号>`（如 `d 3`）逻辑排除指定记录。CSV 会保留原始数值并写入 `included=false`
+
+默认测量顺序由 YAML 的 `measurement.target_masses_g` 决定；数组元素是电子秤的实际质量，
+重复元素表示在该质量下重复测量。临时补点或组合质量可使用 `--interactive`，在终端逐项输入。
 
 ## 三条链路对比
 

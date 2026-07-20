@@ -8,7 +8,7 @@ Ubuntu 24.04 x86_64 下 Contactile PTS 触觉传感器实验代码库，含 C++ 
 |------|------|
 | `vendor/` | 原厂 SDK，**只读** |
 | `cpp_ws/` | C++ 实验区（CMake + Make），入口 `src/minimal_reader.cpp` |
-| `python_ws/` | Python 实验区（uv + Python 3.10），入口 `quick_read.py` |
+| `python_ws/` | Python 实验区（uv + Python 3.10），入口 `quick_read_serial.py`/`quick_read_sdk.py` |
 | `ros2_ws/` | ROS2 实验区（colcon），入口 `src/` 下各 ROS2 package |
 | `config/` | YAML 配置文件 |
 | `scripts/` | 一键运行脚本（bash） |
@@ -117,4 +117,4 @@ def read(
 - 输出：`echo()` 普通信息，`secho(..., err=True)` 错误
 - 捕获 `PermissionError`（提示 dialout 组）、`KeyboardInterrupt`（释放串口）
 - 测试用 `CliRunner`，默认 `--mock`，不依赖硬件
-- 禁止：CLI 写业务逻辑、默认危险操作、交互式 prompt、调用 `sudo`
+- 禁止：CLI 写业务逻辑、默认危险操作、调用 `sudo`

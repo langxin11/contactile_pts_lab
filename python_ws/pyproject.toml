@@ -6,6 +6,7 @@ requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.26",
     "pyserial>=3.5",
+    "pyyaml>=6.0",
     "typer>=0.25.1",
 ]
 
@@ -16,6 +17,18 @@ sdk = [
 gui = [
     "dearpygui>=2.3.1",
     "ptsdk-cxx-pybind",
+]
+measurement = [
+    "ptsdk-cxx-pybind",
+]
+plot = [
+    "matplotlib>=3.8",
+    "scienceplots>=2.2.2,<3",
+]
+experiment = [
+    "matplotlib>=3.8",
+    "ptsdk-cxx-pybind",
+    "scienceplots>=2.2.2,<3",
 ]
 
 [tool.ruff]
@@ -33,6 +46,7 @@ ptsdk-cxx-pybind = { path = "../vendor/PythonLIN/ptsdk_cxx_pybind-1.0.2-cp310-cp
 
 [dependency-groups]
 dev = [
+    "pytest>=8.3,<10",
     "furo>=2025.12.19",
     "myst-parser>=4.0.1",
     "sphinx>=8.1.3",
