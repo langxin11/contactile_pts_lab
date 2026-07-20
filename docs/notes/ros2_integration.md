@@ -34,7 +34,7 @@
 | `CMakeLists.txt` | 构建配置 |
 | `package.xml` | 包清单 |
 
-### sensor_interfaces（消息接口包）
+### papillarray_interfaces（消息接口包）
 
 | 文件 | 说明 |
 |------|------|
@@ -54,7 +54,7 @@
 cd ~/project/contactile_pts_lab/ros2_ws
 
 # 1. 先编译接口包
-colcon build --packages-select sensor_interfaces \
+colcon build --packages-select papillarray_interfaces \
     --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
 
 # 2. 再编译主包

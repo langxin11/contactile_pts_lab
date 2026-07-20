@@ -53,31 +53,31 @@ PapillArrayNode::PapillArrayNode([[maybe_unused]] const rclcpp::NodeOptions &opt
 
         // Setup publisher for sensor
         std::string topic = "/hub_" + std::to_string(hub_id_) + "/sensor_" + std::to_string(sensor_id);
-        sensor_pubs_.push_back(this->create_publisher<sensor_interfaces::msg::SensorState>(topic, rclcpp::SensorDataQoS()));
+        sensor_pubs_.push_back(this->create_publisher<papillarray_interfaces::msg::SensorState>(topic, rclcpp::SensorDataQoS()));
     }
 
 	// Start services
 	RCLCPP_INFO(this->get_logger(), "Starting services...");
 	std::string service_name = "/hub_" + std::to_string(hub_id_) + "/start_slip_detection";
-	start_sd_srv_ = this->create_service<sensor_interfaces::srv::StartSlipDetection>(service_name, 
-		[this]([[maybe_unused]] const std::shared_ptr<sensor_interfaces::srv::StartSlipDetection::Request> request, 
-			std::shared_ptr<sensor_interfaces::srv::StartSlipDetection::Response> response) {
+	start_sd_srv_ = this->create_service<papillarray_interfaces::srv::StartSlipDetection>(service_name,
+		[this]([[maybe_unused]] const std::shared_ptr<papillarray_interfaces::srv::StartSlipDetection::Request> request,
+			std::shared_ptr<papillarray_interfaces::srv::StartSlipDetection::Response> response) {
 			return startSlipDetectionSrvCallback(request, response);
 		});
 	RCLCPP_INFO(this->get_logger(), "Started %s service", service_name.c_str());
 
 	service_name = "/hub_" + std::to_string(hub_id_) + "/stop_slip_detection";
-	stop_sd_srv_ = this->create_service<sensor_interfaces::srv::StopSlipDetection>(service_name, 
-		[this]([[maybe_unused]] const std::shared_ptr<sensor_interfaces::srv::StopSlipDetection::Request> request, 
-			std::shared_ptr<sensor_interfaces::srv::StopSlipDetection::Response> response) {
+	stop_sd_srv_ = this->create_service<papillarray_interfaces::srv::StopSlipDetection>(service_name,
+		[this]([[maybe_unused]] const std::shared_ptr<papillarray_interfaces::srv::StopSlipDetection::Request> request,
+			std::shared_ptr<papillarray_interfaces::srv::StopSlipDetection::Response> response) {
 			return stopSlipDetectionSrvCallback(request, response);
 		});
 	RCLCPP_INFO(this->get_logger(), "Started %s service", service_name.c_str());
 
 	service_name = "/hub_" + std::to_string(hub_id_) + "/send_bias_request";
-	send_bias_request_srv_ = this->create_service<sensor_interfaces::srv::BiasRequest>(service_name, 
-		[this]([[maybe_unused]] const std::shared_ptr<sensor_interfaces::srv::BiasRequest::Request> request, 
-			std::shared_ptr<sensor_interfaces::srv::BiasRequest::Response> response) {
+	send_bias_request_srv_ = this->create_service<papillarray_interfaces::srv::BiasRequest>(service_name,
+		[this]([[maybe_unused]] const std::shared_ptr<papillarray_interfaces::srv::BiasRequest::Request> request,
+			std::shared_ptr<papillarray_interfaces::srv::BiasRequest::Response> response) {
 			return sendBiasRequestSrvCallback(request, response);
 		});
 	RCLCPP_INFO(this->get_logger(), "Started %s service", service_name.c_str());
@@ -116,7 +116,7 @@ void PapillArrayNode::updateData() {
 	}
 
 	for (size_t sensor_id = 0; sensor_id < sensors_.size(); sensor_id++) {
-		auto ss_msg = std::make_shared<sensor_interfaces::msg::SensorState>();
+		auto ss_msg = std::make_shared<papillarray_interfaces::msg::SensorState>();
 
 		// RCLCPP_INFO(this->get_logger(), "N pillars: %d", sensors_[sensor_id]->getNPillar());
 		ss_msg->header.stamp = this->now();
@@ -163,7 +163,7 @@ void PapillArrayNode::updateData() {
 
 		// Get PillarState data for all pillars in sensor array
 		for (int pillar_id = 0; pillar_id < n_pillar; pillar_id++) {
-			auto ps_msg = sensor_interfaces::msg::PillarState();
+			auto ps_msg = papillarray_interfaces::msg::PillarState();
 
 			ps_msg.id = pillar_id;
 			ps_msg.slip_state = slip_states[pillar_id];
@@ -195,23 +195,23 @@ void PapillArrayNode::updateData() {
 	}
 }
 
-bool PapillArrayNode::startSlipDetectionSrvCallback([[maybe_unused]] const std::shared_ptr<sensor_interfaces::srv::StartSlipDetection::Request> req,
-                        std::shared_ptr<sensor_interfaces::srv::StartSlipDetection::Response> resp) {
+bool PapillArrayNode::startSlipDetectionSrvCallback([[maybe_unused]] const std::shared_ptr<papillarray_interfaces::srv::StartSlipDetection::Request> req,
+                        std::shared_ptr<papillarray_interfaces::srv::StartSlipDetection::Response> resp) {
 	RCLCPP_INFO(this->get_logger(), "startSlipDetection callback");
 	resp->result = listener_.startSlipDetection();
 	return resp->result;
 }
 
 
-bool PapillArrayNode::stopSlipDetectionSrvCallback([[maybe_unused]] const std::shared_ptr<sensor_interfaces::srv::StopSlipDetection::Request> req,
-                       std::shared_ptr<sensor_interfaces::srv::StopSlipDetection::Response> resp) {
+bool PapillArrayNode::stopSlipDetectionSrvCallback([[maybe_unused]] const std::shared_ptr<papillarray_interfaces::srv::StopSlipDetection::Request> req,
+                       std::shared_ptr<papillarray_interfaces::srv::StopSlipDetection::Response> resp) {
 	RCLCPP_INFO(this->get_logger(), "stopSlipDetection callback");
 	resp->result = listener_.stopSlipDetection();
 	return resp->result;
 }
 
-bool PapillArrayNode::sendBiasRequestSrvCallback([[maybe_unused]] const std::shared_ptr<sensor_interfaces::srv::BiasRequest::Request> req,
-                     std::shared_ptr<sensor_interfaces::srv::BiasRequest::Response> resp) {
+bool PapillArrayNode::sendBiasRequestSrvCallback([[maybe_unused]] const std::shared_ptr<papillarray_interfaces::srv::BiasRequest::Request> req,
+                     std::shared_ptr<papillarray_interfaces::srv::BiasRequest::Response> resp) {
 	RCLCPP_INFO(this->get_logger(), "sendBiasRequest callback");
 	resp->result = listener_.sendBiasRequest();
 	return resp->result;

@@ -5,7 +5,7 @@ ROS2 drivers for papillarray sensor
 ## Packages in the Repository:
 
   - `papillarray_ros2_v2` - cpp node for the papillarray sensor.
-  - `sensor_interfaces` - custom msgs and srvs used by sensor packages.
+  - `papillarray_interfaces` - custom msgs and srvs used by sensor packages.
 
 ## Getting Started
 For getting started, you'll need to complete these steps:

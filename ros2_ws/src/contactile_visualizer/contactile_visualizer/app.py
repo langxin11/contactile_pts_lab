@@ -12,7 +12,7 @@ from typing import Annotated, Literal
 
 import rclpy
 from rclpy.node import Node
-from sensor_interfaces.msg import PillarState, SensorState
+from papillarray_interfaces.msg import PillarState, SensorState
 import typer
 
 try:

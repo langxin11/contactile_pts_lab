@@ -30,7 +30,7 @@ fi
 case "${MODE}" in
     --mock)
         echo "启动 ROS2 模拟节点..."
-        ros2 topic pub --rate 50 /hub_0/sensor_0 sensor_interfaces/msg/SensorState \
+        ros2 topic pub --rate 50 /hub_0/sensor_0 papillarray_interfaces/msg/SensorState \
             "{header: {frame_id: 'hub_0/sensor_0'}, tus: 0, pillars: [{id: 0, dx: 0.0, dy: 0.0, dz: 0.0, fx: 0.0, fy: 0.0, fz: 0.0, in_contact: false, slip_state: 0}], gfx: 0.0, gfy: 0.0, gfz: 0.0, gtx: 0.0, gty: 0.0, gtz: 0.0, friction_est: -1.0, target_grip_force: -1.0, is_sd_active: false, is_ref_loaded: false, is_contact: false}"
         ;;
     --real)
