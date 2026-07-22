@@ -6,6 +6,7 @@ ROS2 drivers for papillarray sensor
 
   - `papillarray_ros2_v2` - cpp node for the papillarray sensor.
   - `papillarray_interfaces` - custom msgs and srvs used by sensor packages.
+  - `papillarray_serial_driver` - pure Python serial driver without the vendor SDK.
 
 ## Getting Started
 For getting started, you'll need to complete these steps:
@@ -32,6 +33,9 @@ For getting started, you'll need to complete these steps:
    colcon build
    source ./install/setup.bash
    ```
+
+The three packages can live in one Git repository. Clone that repository once under another
+workspace's `src/` directory; colcon will discover and order all packages automatically.
 ## Getting Started
 **To use the Papillarray Sensor ROS2 driver:**
 

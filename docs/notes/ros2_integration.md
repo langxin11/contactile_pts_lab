@@ -46,6 +46,12 @@
 | `CMakeLists.txt` | 构建配置 |
 | `package.xml` | 包清单 |
 
+### papillarray_serial_driver（自研 Python 串口驱动）
+
+该包直接解析 PTS v2.0 串口协议，不依赖原厂 PTSDK 静态库。它与
+`papillarray_ros2_v2` 发布相同消息并提供同名服务，两套驱动应二选一运行，不能同时占用
+同一个串口。
+
 ---
 
 ## 3. 编译步骤
@@ -63,6 +69,13 @@ colcon build --packages-select papillarray_ros2_v2 \
 
 # 3. 加载环境
 source install/setup.bash
+```
+
+构建自研串口驱动：
+
+```bash
+colcon build --packages-select papillarray_interfaces papillarray_serial_driver \
+    --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
 ```
 
 > **注意**：如果系统同时存在 uv 的 Python，colcon 可能找到错误的解释器。必须显式指定 `-DPython3_EXECUTABLE=/usr/bin/python3`。
@@ -83,6 +96,9 @@ source install/setup.bash
 | `byte_size` | int | 8 | 字节大小 |
 | `is_flush` | bool | — | 是否 flush 硬件缓冲区 |
 | `sampling_rate` | int | — | 采样率 (100/250/500/1000 Hz) |
+
+自研串口驱动默认使用 115200 baud，另外提供 `serial_timeout_sec`、
+`contact_threshold_n`、`reconnect_initial_delay_sec` 和 `reconnect_max_delay_sec` 参数。
 
 ---
 
@@ -149,6 +165,12 @@ source ~/project/contactile_pts_lab/ros2_ws/install/setup.bash
 
 # 启动
 ros2 launch papillarray_ros2_v2 papillarray.launch.py
+```
+
+不使用原厂 SDK、改用自研串口解析时启动：
+
+```bash
+ros2 launch papillarray_serial_driver papillarray_serial.launch.py
 ```
 
 ---

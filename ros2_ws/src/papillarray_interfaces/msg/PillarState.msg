@@ -22,6 +22,7 @@ float32 fz    # Z 方向力 (法向)
 bool in_contact    # 该触点当前是否与物体接触
 
 # 滑动状态，取值定义于 PTSDKConstants.h:
+#    0 = UNKNOWN          数据包未提供滑动状态
 #   -2 = INELIGIBLE       滑动检测启动时该 pillar 未处于接触状态
 #   -1 = LOST_CONTACT     接触后失去接触
 #    1 = CONTACT_AT_START 滑动检测启动时处于接触状态
