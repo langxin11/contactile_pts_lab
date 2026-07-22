@@ -57,8 +57,8 @@ colcon build \
 source install/setup.bash
 ```
 
-仓库已经包含 Ubuntu x86_64 使用的 `papillarray_ros2_v2/lib/libPTSDK.a`，可以直接构建
-原厂 C++ 驱动：
+仓库已经包含 x86_64、AArch64、ARM32 hard-float/soft-float 和 ARMv6 hard-float 的
+PTSDK 静态库。CMake 会根据目标处理器与 ARM ABI 自动选择，可以直接构建原厂 C++ 驱动：
 
 ```bash
 colcon build \
@@ -67,7 +67,15 @@ colcon build \
 source install/setup.bash
 ```
 
-在 ARM 或其他平台上，需要从已获授权的 Contactile SDK 中提供对应架构的静态库：
+如果 ARM32 交叉编译工具链没有提供明确的浮点 ABI，可以手动指定：
+
+```bash
+colcon build \
+  --packages-select papillarray_interfaces papillarray_ros2_v2 \
+  --cmake-args -DPTSDK_ARCH=arm32_hf
+```
+
+需要使用仓库外部的特殊 PTSDK 版本时，可以直接覆盖库路径：
 
 ```bash
 colcon build \
@@ -228,6 +236,5 @@ colcon test-result --verbose
 
 ## 许可说明
 
-`papillarray_ros2_v2` 包含经过兼容性修复的 Contactile PTSDK 头文件和 Ubuntu x86_64
-静态库。仓库应保持私有；在公开发布或二次分发原厂文件前，需要先确认 Contactile SDK
-的许可条款。
+`papillarray_ros2_v2` 包含经过兼容性修复的 Contactile PTSDK 头文件和多架构静态库。
+仓库应保持私有；在公开发布或二次分发原厂文件前，需要先确认 Contactile SDK 的许可条款。

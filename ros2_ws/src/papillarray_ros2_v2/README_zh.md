@@ -4,10 +4,11 @@ PapillArray 触觉传感器的 ROS 2 驱动节点，通过串口与传感器集�
 
 ## 包说明
 
-本包是 PapillArray 传感器在 ROS 2 环境下的核心驱动。仓库包含 Ubuntu x86_64 使用的
-Contactile 官方 PTSDK 静态库 (`libPTSDK.a`)，通过串口与传感器硬件通信，并将采集到的
-位移、力、力矩、摩擦系数、滑动状态等数据以 ROS 2 Topic 形式发布，同时提供偏置校准和
-滑动检测等服务接口。仓库应保持私有；公开或二次分发前仍需确认原厂 SDK 许可。
+本包是 PapillArray 传感器在 ROS 2 环境下的核心驱动。仓库包含 x86_64、AArch64 和
+ARM32 不同浮点 ABI 使用的 Contactile 官方 PTSDK 静态库。CMake 会根据目标平台自动选择，
+通过串口与传感器硬件通信，并将采集到的位移、力、力矩、摩擦系数、滑动状态等数据以
+ROS 2 Topic 形式发布，同时提供偏置校准和滑动检测等服务接口。仓库应保持私有；公开或
+二次分发前仍需确认原厂 SDK 许可。
 
 ## 硬件架构
 
@@ -67,15 +68,26 @@ Contactile 官方 PTSDK 静态库 (`libPTSDK.a`)，通过串口与传感器硬�
 
 ## 快速开始
 
-### 1. 确认运行平台
+### 1. PTSDK 平台选择
 
-仓库已经包含 Ubuntu x86_64 使用的静态库：
+CMake 默认根据 `CMAKE_SYSTEM_PROCESSOR`、编译器目标和 ARM 浮点 ABI 自动选择：
 
-```text
-papillarray_ros2_v2/lib/libPTSDK.a
+| `PTSDK_ARCH` | 静态库 | 适用平台 |
+|--------------|--------|----------|
+| `x86_64` | `libPTSDK.a` | AMD64/x86-64 |
+| `aarch64` | `libPTSDK_aarch64.a` | ARM 64-bit |
+| `arm32_hf` | `libPTSDK_arm32_hf.a` | ARMv7 hard-float |
+| `arm32_sf` | `libPTSDK_arm32_sf.a` | ARMv7 soft/softfp |
+| `arm32v6_hf` | `libPTSDK_arm32v6_hf.a` | ARMv6 hard-float |
+
+ARM32 工具链没有提供足够 ABI 信息时，CMake 会停止而不是猜测，可以显式指定：
+
+```bash
+colcon build --packages-select papillarray_interfaces papillarray_ros2_v2 \
+  --cmake-args -DPTSDK_ARCH=arm32_hf
 ```
 
-在 ARM 或其他平台上，需要换用对应架构的已授权 PTSDK 静态库，并在构建时传入绝对路径：
+使用仓库外部的特殊版本时，`PTSDK_LIBRARY` 的绝对路径优先级最高：
 
 ```bash
 colcon build --packages-select papillarray_interfaces papillarray_ros2_v2 \
@@ -132,7 +144,7 @@ ros2 service call /hub_0/send_bias_request papillarray_interfaces/srv/BiasReques
 - `rclcpp` — ROS 2 C++ 客户端库
 - `std_msgs` — ROS 2 标准消息
 - `papillarray_interfaces` — PapillArray 自定义接口
-- `libPTSDK.a` — Contactile 官方 PTSDK x86_64 静态库，已包含在 `lib/` 目录
+- `libPTSDK*.a` — Contactile 官方 PTSDK 多架构静态库，已包含在 `lib/` 目录
 
 ## 数据流
 

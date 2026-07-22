@@ -39,21 +39,106 @@ target_include_directories(papillarray_ros2_node PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
 
-# 链接 PTSDK 静态库 (libPTSDK.a)
-# 仓库包含 x86_64 版本；其他架构可以显式指定已获授权的本地 SDK 路径。
+# ---------- 选择 PTSDK 静态库 ----------
+# PTSDK_LIBRARY 用于特殊工具链或外部 SDK，非空时优先于自动检测。
 set(PTSDK_LIBRARY
-  "${CMAKE_CURRENT_SOURCE_DIR}/lib/libPTSDK.a"
-  CACHE FILEPATH "Path to the Contactile PTSDK static library"
+  ""
+  CACHE FILEPATH "Explicit PTSDK library path; empty enables platform detection"
 )
-if(NOT EXISTS "${PTSDK_LIBRARY}")
+
+set(PTSDK_ARCH
+  "auto"
+  CACHE STRING "PTSDK architecture: auto, x86_64, aarch64, arm32_hf, arm32_sf, or arm32v6_hf"
+)
+set_property(CACHE PTSDK_ARCH PROPERTY STRINGS
+  auto
+  x86_64
+  aarch64
+  arm32_hf
+  arm32_sf
+  arm32v6_hf
+)
+
+if(PTSDK_LIBRARY)
+  set(PTSDK_SELECTED_LIBRARY "${PTSDK_LIBRARY}")
+  set(PTSDK_SELECTED_ARCH "explicit path")
+else()
+  string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" PTSDK_SYSTEM_PROCESSOR)
+  string(TOLOWER
+    "${CMAKE_LIBRARY_ARCHITECTURE};${CMAKE_CXX_COMPILER_TARGET};${CMAKE_CXX_FLAGS}"
+    PTSDK_ABI_HINTS
+  )
+
+  if(PTSDK_ARCH STREQUAL "auto")
+    if(PTSDK_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
+      set(PTSDK_SELECTED_ARCH "x86_64")
+    elseif(PTSDK_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+      set(PTSDK_SELECTED_ARCH "aarch64")
+    elseif(PTSDK_SYSTEM_PROCESSOR MATCHES "^(armv6|armv6l)$")
+      if(PTSDK_ABI_HINTS MATCHES "gnueabihf|armhf|-mfloat-abi=hard")
+        set(PTSDK_SELECTED_ARCH "arm32v6_hf")
+      else()
+        message(FATAL_ERROR
+          "Cannot safely select an ARMv6 PTSDK library from ABI hints: ${PTSDK_ABI_HINTS}\n"
+          "Only the ARMv6 hard-float library is available. Configure with "
+          "-DPTSDK_ARCH=arm32v6_hf or -DPTSDK_LIBRARY=/absolute/path/to/libPTSDK.a"
+        )
+      endif()
+    elseif(PTSDK_SYSTEM_PROCESSOR MATCHES "^(arm|armv7|armv7l|armhf)$")
+      if(PTSDK_ABI_HINTS MATCHES "gnueabihf|armhf|-mfloat-abi=hard")
+        set(PTSDK_SELECTED_ARCH "arm32_hf")
+      elseif(PTSDK_ABI_HINTS MATCHES "gnueabi|-mfloat-abi=(soft|softfp)")
+        set(PTSDK_SELECTED_ARCH "arm32_sf")
+      else()
+        message(FATAL_ERROR
+          "Cannot determine the ARM32 floating-point ABI from: ${PTSDK_ABI_HINTS}\n"
+          "Configure with -DPTSDK_ARCH=arm32_hf or -DPTSDK_ARCH=arm32_sf"
+        )
+      endif()
+    else()
+      message(FATAL_ERROR
+        "Unsupported processor for automatic PTSDK selection: ${CMAKE_SYSTEM_PROCESSOR}\n"
+        "Configure with -DPTSDK_ARCH=<supported-arch> or "
+        "-DPTSDK_LIBRARY=/absolute/path/to/libPTSDK.a"
+      )
+    endif()
+  else()
+    set(PTSDK_SELECTED_ARCH "${PTSDK_ARCH}")
+  endif()
+
+  if(PTSDK_SELECTED_ARCH STREQUAL "x86_64")
+    set(PTSDK_SELECTED_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/lib/libPTSDK.a")
+  elseif(PTSDK_SELECTED_ARCH STREQUAL "aarch64")
+    set(PTSDK_SELECTED_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/lib/libPTSDK_aarch64.a")
+  elseif(PTSDK_SELECTED_ARCH STREQUAL "arm32_hf")
+    set(PTSDK_SELECTED_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/lib/libPTSDK_arm32_hf.a")
+  elseif(PTSDK_SELECTED_ARCH STREQUAL "arm32_sf")
+    set(PTSDK_SELECTED_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/lib/libPTSDK_arm32_sf.a")
+  elseif(PTSDK_SELECTED_ARCH STREQUAL "arm32v6_hf")
+    set(PTSDK_SELECTED_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/lib/libPTSDK_arm32v6_hf.a")
+  else()
+    message(FATAL_ERROR
+      "Invalid PTSDK_ARCH=${PTSDK_SELECTED_ARCH}; expected x86_64, aarch64, "
+      "arm32_hf, arm32_sf, or arm32v6_hf"
+    )
+  endif()
+endif()
+
+if(NOT EXISTS "${PTSDK_SELECTED_LIBRARY}")
   message(FATAL_ERROR
-    "Contactile PTSDK library not found: ${PTSDK_LIBRARY}\n"
-    "Copy the licensed x86_64 libPTSDK.a into papillarray_ros2_v2/lib, "
-    "or configure with -DPTSDK_LIBRARY=/absolute/path/to/libPTSDK.a"
+    "Contactile PTSDK library not found: ${PTSDK_SELECTED_LIBRARY}\n"
+    "Restore the matching library under papillarray_ros2_v2/lib, or configure "
+    "with -DPTSDK_LIBRARY=/absolute/path/to/libPTSDK.a"
   )
 endif()
+
+message(STATUS
+  "PTSDK platform: processor=${CMAKE_SYSTEM_PROCESSOR}, selection=${PTSDK_SELECTED_ARCH}"
+)
+message(STATUS "PTSDK library: ${PTSDK_SELECTED_LIBRARY}")
+
 target_link_libraries(papillarray_ros2_node
-  ${PTSDK_LIBRARY}
+  "${PTSDK_SELECTED_LIBRARY}"
 )
 ament_target_dependencies(papillarray_ros2_node rclcpp std_msgs papillarray_interfaces)
 
