@@ -40,7 +40,7 @@ target_include_directories(papillarray_ros2_node PRIVATE
 )
 
 # 链接 PTSDK 静态库 (libPTSDK.a)
-# 原厂二进制默认不提交到 Git；允许使用方显式指定已获授权的本地 SDK 路径。
+# 仓库包含 x86_64 版本；其他架构可以显式指定已获授权的本地 SDK 路径。
 set(PTSDK_LIBRARY
   "${CMAKE_CURRENT_SOURCE_DIR}/lib/libPTSDK.a"
   CACHE FILEPATH "Path to the Contactile PTSDK static library"

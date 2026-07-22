@@ -57,17 +57,22 @@ colcon build \
 source install/setup.bash
 ```
 
-构建原厂 C++ 驱动前，需要从已获授权的 Contactile SDK 中提供 x86_64
-`libPTSDK.a`。静态库不随 Git 仓库分发，可以复制到
-`papillarray_ros2_v2/lib/libPTSDK.a`，或者显式指定路径：
+仓库已经包含 Ubuntu x86_64 使用的 `papillarray_ros2_v2/lib/libPTSDK.a`，可以直接构建
+原厂 C++ 驱动：
 
 ```bash
 colcon build \
   --packages-select papillarray_interfaces papillarray_ros2_v2 \
-  --cmake-args \
-    -DPython3_EXECUTABLE=/usr/bin/python3 \
-    -DPTSDK_LIBRARY=/absolute/path/to/libPTSDK.a
+  --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
 source install/setup.bash
+```
+
+在 ARM 或其他平台上，需要从已获授权的 Contactile SDK 中提供对应架构的静态库：
+
+```bash
+colcon build \
+  --packages-select papillarray_interfaces papillarray_ros2_v2 \
+  --cmake-args -DPTSDK_LIBRARY=/absolute/path/to/libPTSDK.a
 ```
 
 如果静态库缺失，CMake 会给出明确错误。Python 串口驱动的构建和运行不受影响。
@@ -223,6 +228,6 @@ colcon test-result --verbose
 
 ## 许可说明
 
-`papillarray_ros2_v2` 包含经过兼容性修复的 Contactile PTSDK 头文件，但 Git 仓库不包含
-原厂静态库。使用者需要自行提供已获授权的 `libPTSDK.a`；在公开发布或二次分发原厂文件前，
-仍需要先确认 Contactile SDK 的许可条款。
+`papillarray_ros2_v2` 包含经过兼容性修复的 Contactile PTSDK 头文件和 Ubuntu x86_64
+静态库。仓库应保持私有；在公开发布或二次分发原厂文件前，需要先确认 Contactile SDK
+的许可条款。

@@ -4,10 +4,10 @@ PapillArray 触觉传感器的 ROS 2 驱动节点，通过串口与传感器集�
 
 ## 包说明
 
-本包是 PapillArray 传感器在 ROS 2 环境下的核心驱动。它链接用户本地安装的 Contactile
-官方 PTSDK 静态库 (`libPTSDK.a`)，通过串口与传感器硬件通信，并将采集到的位移、力、
-力矩、摩擦系数、滑动状态等数据以 ROS 2 Topic 形式发布，同时提供偏置校准和滑动检测
-等服务接口。由于原厂 SDK 的许可需要单独确认，Git 仓库不分发 PTSDK 静态库。
+本包是 PapillArray 传感器在 ROS 2 环境下的核心驱动。仓库包含 Ubuntu x86_64 使用的
+Contactile 官方 PTSDK 静态库 (`libPTSDK.a`)，通过串口与传感器硬件通信，并将采集到的
+位移、力、力矩、摩擦系数、滑动状态等数据以 ROS 2 Topic 形式发布，同时提供偏置校准和
+滑动检测等服务接口。仓库应保持私有；公开或二次分发前仍需确认原厂 SDK 许可。
 
 ## 硬件架构
 
@@ -67,15 +67,15 @@ PapillArray 触觉传感器的 ROS 2 驱动节点，通过串口与传感器集�
 
 ## 快速开始
 
-### 1. 准备 PTSDK 静态库
+### 1. 确认运行平台
 
-把已获授权的 x86_64 静态库复制到：
+仓库已经包含 Ubuntu x86_64 使用的静态库：
 
 ```text
 papillarray_ros2_v2/lib/libPTSDK.a
 ```
 
-也可以在构建时传入绝对路径，不需要复制：
+在 ARM 或其他平台上，需要换用对应架构的已授权 PTSDK 静态库，并在构建时传入绝对路径：
 
 ```bash
 colcon build --packages-select papillarray_interfaces papillarray_ros2_v2 \
@@ -132,7 +132,7 @@ ros2 service call /hub_0/send_bias_request papillarray_interfaces/srv/BiasReques
 - `rclcpp` — ROS 2 C++ 客户端库
 - `std_msgs` — ROS 2 标准消息
 - `papillarray_interfaces` — PapillArray 自定义接口
-- `libPTSDK.a` — Contactile 官方 PTSDK 静态库，需要用户从已获授权的 SDK 中提供
+- `libPTSDK.a` — Contactile 官方 PTSDK x86_64 静态库，已包含在 `lib/` 目录
 
 ## 数据流
 
