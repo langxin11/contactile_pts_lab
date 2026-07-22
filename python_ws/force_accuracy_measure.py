@@ -246,6 +246,7 @@ class Measurement:
         settle_time_sec: 从开始测量到稳定的时间，单位 s。
         window_start_us: 稳定窗口起始控制器时间戳，单位 µs。
         window_end_us: 稳定窗口结束控制器时间戳，单位 µs。
+        elapsed_s: 从首个测量窗口起始到本窗口起始的相对时间，单位 s。
         protocol_raw_normal_force_n: 自研协议解析的法向力均值，单位 N。
         protocol_measured_pressure_n: 自研协议换算后的压力，单位 N。
         protocol_std_force_n: 自研协议窗口标准差，单位 N。
@@ -271,6 +272,7 @@ class Measurement:
     settle_time_sec: float
     window_start_us: int
     window_end_us: int
+    elapsed_s: float = 0.0
     protocol_raw_normal_force_n: float = float("nan")
     protocol_measured_pressure_n: float = float("nan")
     protocol_std_force_n: float = float("nan")
@@ -720,6 +722,7 @@ def run_accuracy_session(
             raise RuntimeError("Bias 请求失败")
         typer.echo("Bias 完成。测量期间请勿再次置零。")
 
+        session_start_us: int | None = None
         scheduled_index = 0
         if not interactive:
             typer.echo(f"将按配置依次测量 {len(target_masses_g)} 个质量点；使用 --interactive 可手动输入。")
@@ -807,6 +810,9 @@ def run_accuracy_session(
             relative_error_percent = (
                 error_n / expected_force_n * 100.0 if expected_force_n else float("nan")
             )
+            if session_start_us is None:
+                session_start_us = window_start_us
+            elapsed_s = (window_start_us - session_start_us) / 1_000_000.0
             measurement = Measurement(
                 record_id=len(measurements) + 1,
                 timestamp=datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -823,6 +829,7 @@ def run_accuracy_session(
                 settle_time_sec=settle_time_sec,
                 window_start_us=window_start_us,
                 window_end_us=window_end_us,
+                elapsed_s=elapsed_s,
             )
             measurements.append(measurement)
             save_measurements(measurements, session_dir)

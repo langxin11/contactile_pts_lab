@@ -34,3 +34,7 @@ plot:
   marker_size: 2.5
   # 仅用 included=true 的记录绘制线性最小二乘拟合与 R²。
   fit: true
+  # 面板布局: grid(左1右2单文件) | stacked(上下双面板) | separate(三张独立图)
+  layout: "grid"
+  # 同一质量有多次测量时，overlay 组均值大号标记与组间标准差。
+  group_stats: true

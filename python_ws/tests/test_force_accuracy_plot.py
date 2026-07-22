@@ -60,7 +60,7 @@ def _write_csv(csv_path: pathlib.Path) -> None:
 
 
 def test_load_plot_config() -> None:
-    """仓库 YAML 应启用自动钩子所需的 IEEE 单栏配置。"""
+    """仓库 YAML 默认 layout="grid"、group_stats=true。"""
     config_path = pathlib.Path(__file__).resolve().parents[2] / "config/force_accuracy.yaml"
 
     config = load_plot_config(config_path)
@@ -69,6 +69,9 @@ def test_load_plot_config() -> None:
     assert config.dpi == 300
     assert config.filename == "mass_vs_normal_force.png"
     assert config.marker_size == pytest.approx(2.5)
+    assert config.fit is True
+    assert config.layout == "grid"
+    assert config.group_stats is True
 
 
 def test_load_measurement_columns(tmp_path: pathlib.Path) -> None:
@@ -97,8 +100,8 @@ def test_load_protocol_columns(tmp_path: pathlib.Path) -> None:
     assert standard_deviation.tolist() == pytest.approx([0.011, 0.021])
 
 
-def test_plot_accuracy_generates_png_when_plot_extra_available(tmp_path: pathlib.Path) -> None:
-    """安装 plot extra 时应真正生成非空 IEEE 单栏 PNG。"""
+def test_grid_layout_generates_single_figure(tmp_path: pathlib.Path) -> None:
+    """layout="grid" 应生成左 1 右 2 单文件 PNG（含全部三个面板）。"""
     pytest.importorskip("scienceplots")
     csv_path = tmp_path / "measurements.csv"
     _write_csv(csv_path)
@@ -107,11 +110,77 @@ def test_plot_accuracy_generates_png_when_plot_extra_available(tmp_path: pathlib
         dpi=100,
         filename="result.png",
         marker_size=3.5,
+        layout="grid",
     )
 
     output_path = plot_accuracy(csv_path, config)
 
     assert output_path == tmp_path / "result.png"
+    assert output_path.stat().st_size > 0
+    # grid 布局不产生额外文件
+    assert not (tmp_path / "result_residual.png").exists()
+    assert not (tmp_path / "result_pct_error.png").exists()
+
+
+def test_stacked_layout_generates_two_row_figure(tmp_path: pathlib.Path) -> None:
+    """layout="stacked" 应生成上下双面板 PNG。"""
+    pytest.importorskip("scienceplots")
+    csv_path = tmp_path / "measurements.csv"
+    _write_csv(csv_path)
+    config = PlotConfig(
+        styles=("science", "ieee", "no-latex"),
+        dpi=100,
+        filename="result.png",
+        marker_size=3.5,
+        layout="stacked",
+    )
+
+    output_path = plot_accuracy(csv_path, config)
+
+    assert output_path == tmp_path / "result.png"
+    assert output_path.stat().st_size > 0
+
+
+def test_separate_layout_creates_three_files(tmp_path: pathlib.Path) -> None:
+    """layout="separate" 应生成三张独立 PNG（主图 + 残差 + 百分比）。"""
+    pytest.importorskip("scienceplots")
+    csv_path = tmp_path / "measurements.csv"
+    _write_csv(csv_path)
+    config = PlotConfig(
+        styles=("science", "ieee", "no-latex"),
+        dpi=100,
+        filename="result.png",
+        marker_size=3.5,
+        layout="separate",
+    )
+
+    output_path = plot_accuracy(csv_path, config)
+    res_path = tmp_path / "result_residual.png"
+    pct_path = tmp_path / "result_pct_error.png"
+
+    assert output_path == tmp_path / "result.png"
+    assert res_path.exists()
+    assert res_path.stat().st_size > 0
+    assert pct_path.exists()
+    assert pct_path.stat().st_size > 0
+
+
+def test_group_stats_without_duplicate_masses_skips_overlay(tmp_path: pathlib.Path) -> None:
+    """只有 2 个不同质量时 group_stats 不额外添加图例条目但正常生成。"""
+    pytest.importorskip("scienceplots")
+    csv_path = tmp_path / "measurements.csv"
+    _write_csv(csv_path)
+    config = PlotConfig(
+        styles=("science", "ieee", "no-latex"),
+        dpi=100,
+        filename="result.png",
+        marker_size=3.5,
+        layout="grid",
+        group_stats=True,
+    )
+
+    output_path = plot_accuracy(csv_path, config)
+
     assert output_path.stat().st_size > 0
 
 
