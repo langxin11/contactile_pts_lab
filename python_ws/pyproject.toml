@@ -5,6 +5,7 @@ description = "Contactile PTS Lab Python workspace"
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.26",
+    "papillarray-serial-driver",
     "pyserial>=3.5",
     "pyyaml>=6.0",
     "typer>=0.25.1",
@@ -42,6 +43,7 @@ ignore = ["E501"]
 quote-style = "double"
 
 [tool.uv.sources]
+papillarray-serial-driver = { path = "../ros2_ws/src/papillarray_serial_driver", editable = true }
 ptsdk-cxx-pybind = { path = "../vendor/PythonLIN/ptsdk_cxx_pybind-1.0.2-cp310-cp310-linux_x86_64.whl" }
 
 [dependency-groups]
