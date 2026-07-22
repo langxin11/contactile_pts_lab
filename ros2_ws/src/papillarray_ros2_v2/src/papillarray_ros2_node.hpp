@@ -9,14 +9,16 @@
 #define PAPILLARRAY_ROS2_V2_NODE_H_
 
 #include <stdio.h>
-#include <memory>
-#include <vector>
-#include <string>
 #include <chrono>
+#include <memory>
+#include <string>
+#include <vector>
 
 // ROS 2 核心头文件
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/header.hpp"
+
+#include "csv_logger.hpp"
 
 // ---- 自定义消息 ----
 #include "papillarray_interfaces/msg/pillar_state.hpp"
@@ -56,10 +58,11 @@
 class PapillArrayNode : public rclcpp::Node {
 public:
     // 构造函数: 声明参数、创建传感器、连接串口、启动定时器
-    PapillArrayNode(const rclcpp::NodeOptions & options);
+    explicit PapillArrayNode(const rclcpp::NodeOptions & options);
 
     // 析构函数: 停止数据监听并断开与 COM 口的连接
     ~PapillArrayNode() {
+        csv_logger_.close();
         listener_.stopListeningAndDisconnect();
     }
 
@@ -76,10 +79,13 @@ private:
     int byte_size_;        // 数据位宽，默认 8 位
     bool is_flush_;        // 缓冲区溢出时是否清空硬件输入缓冲
     int sampling_rate_;    // 采样频率 (Hz): 100/250/500/1000
+    std::string log_dir_;  // CSV 日志目录；空字符串表示关闭日志
+    bool csv_pillar_detail_;  // 是否在 CSV 中记录逐 pillar 位移与力
 
     // ======== 传感器管理 ========
     PTSDKListener listener_;                         // 串口监听器，管理底层数据流
     std::vector<std::unique_ptr<PTSDKSensor> > sensors_;  // 传感器对象容器
+    CsvLogger csv_logger_;                           // 可控权限的时间序列 CSV 写入器
 
     // ======== ROS 2 通信接口 ========
     // 每个传感器对应一个 Publisher，发布到 /hub_{id}/sensor_{n} 话题

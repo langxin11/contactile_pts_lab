@@ -6,7 +6,10 @@
 // 采样频率选项等。被驱动节点和 SDK 库共同引用。
 // ============================================================
 
-#ifndef PTSDKCONTANTS_H
+#ifndef PTSDKCONSTANTS_H
+#define PTSDKCONSTANTS_H
+
+// Workaround for vendor bug: 保留原厂拼写错误的宏，兼容已有下游代码。
 #define PTSDKCONTANTS_H
 
 /* ================================================================
@@ -61,4 +64,4 @@
    ================================================================ */
 #define ISDEBUGOUTPUT  0
 
-#endif
+#endif  // PTSDKCONSTANTS_H

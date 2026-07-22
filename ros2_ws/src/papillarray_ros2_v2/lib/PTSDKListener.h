@@ -1,6 +1,7 @@
 #ifndef PTSDKLISTENER_H
 #define PTSDKLISTENER_H
-#endif
+
+// Workaround for vendor bug: 原厂头文件的 include guard 在文件开头过早结束。
 
 #ifdef _WIN32
 #ifndef PTSDK_CPP_LIB_H
@@ -16,7 +17,7 @@
 #include "PTSDKSensor.h"
 #endif
 
-#ifndef PARSER_H
+#ifndef PTSDKPARSER_H
 #include "PTSDKParser.h"
 #endif
 
@@ -243,3 +244,5 @@ public:
 	double getTargetGripForce(void);
 
 };
+
+#endif  // PTSDKLISTENER_H

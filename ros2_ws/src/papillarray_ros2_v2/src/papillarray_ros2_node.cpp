@@ -20,7 +20,7 @@
 // ============================================================
 PapillArrayNode::PapillArrayNode([[maybe_unused]] const rclcpp::NodeOptions &options)
     : Node("papillarray_ros2_v2_node")   // 节点名称
-    , listener_(true)                     // 启用 CSV 日志 (写入 ~/.ros/Logs)
+    , listener_(false)                    // SDK 日志会生成 000 权限文件，改由节点自行记录
 {
     // ---------- 1. 加载参数 ----------
     RCLCPP_INFO(this->get_logger(), "Loading parameters...\n");
@@ -64,7 +64,26 @@ PapillArrayNode::PapillArrayNode([[maybe_unused]] const rclcpp::NodeOptions &opt
     sampling_rate_ = this->declare_parameter("sampling_rate", 0);
     RCLCPP_INFO(this->get_logger(), "Sampling rate: %d Hz", sampling_rate_);
 
+    // 空目录表示关闭 CSV；默认只记录时间曲线需要的状态量，避免高频写入过多数据。
+    log_dir_ = this->declare_parameter("log_dir", std::string(""));
+    csv_pillar_detail_ = this->declare_parameter("csv_pillar_detail", false);
+    RCLCPP_INFO(
+        this->get_logger(),
+        "CSV logging: %s (pillar detail: %d)",
+        log_dir_.empty() ? "disabled" : log_dir_.c_str(),
+        csv_pillar_detail_);
+
     RCLCPP_INFO(this->get_logger(), "Loaded parameters.\n");
+
+    if (n_sensors_ > MAX_NSENSOR || n_sensors_ < 1) {
+        RCLCPP_FATAL(
+            this->get_logger(),
+            "Invalid number of sensors: %d (expected 1 to %d)",
+            n_sensors_,
+            MAX_NSENSOR);
+        rclcpp::shutdown();
+        return;
+    }
 
     // ---------- 2. 创建传感器实例 ----------
     sensors_.resize(n_sensors_);
@@ -131,8 +150,22 @@ PapillArrayNode::PapillArrayNode([[maybe_unused]] const rclcpp::NodeOptions &opt
         // 连接失败 (返回 true 表示出错)
         RCLCPP_FATAL(this->get_logger(), "\033[91mFailed to connect to port: %s\033[0m", port_.c_str());
         rclcpp::shutdown();
+        return;
     } else {
         RCLCPP_INFO(this->get_logger(), "\033[92mConnected to port: %s\033[0m", port_.c_str());
+    }
+
+    if (!log_dir_.empty()) {
+        std::string csv_error;
+        if (!csv_logger_.open(
+                log_dir_, hub_id_, MAX_NPILLAR, csv_pillar_detail_, &csv_error)) {
+            RCLCPP_ERROR(this->get_logger(), "CSV logging disabled: %s", csv_error.c_str());
+        } else {
+            RCLCPP_INFO(
+                this->get_logger(),
+                "CSV log file opened: %s",
+                csv_logger_.filePath().c_str());
+        }
     }
 
     // ---------- 5. 设置采样频率并启动定时器 ----------
@@ -252,6 +285,14 @@ void PapillArrayNode::updateData() {
 
         // 发布 SensorState 消息
         sensor_pubs_[sensor_id]->publish(*ss_msg);
+
+        if (csv_logger_.isOpen()) {
+            std::string csv_error;
+            if (!csv_logger_.write(sensor_id, *ss_msg, &csv_error)) {
+                RCLCPP_ERROR(this->get_logger(), "CSV logging stopped: %s", csv_error.c_str());
+                csv_logger_.close();
+            }
+        }
     }
 }
 

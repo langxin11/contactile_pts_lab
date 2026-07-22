@@ -29,7 +29,10 @@ find_package(std_msgs REQUIRED)                    # 标准消息类型
 find_package(papillarray_interfaces REQUIRED)      # PapillArray 自定义接口
 
 # ---------- 构建可执行节点 ----------
-add_executable(papillarray_ros2_node src/papillarray_ros2_node.cpp)
+add_executable(papillarray_ros2_node
+  src/csv_logger.cpp
+  src/papillarray_ros2_node.cpp
+)
 
 # 添加 PTSDK 头文件搜索路径
 target_include_directories(papillarray_ros2_node PRIVATE
@@ -37,9 +40,20 @@ target_include_directories(papillarray_ros2_node PRIVATE
 )
 
 # 链接 PTSDK 静态库 (libPTSDK.a)
-# 该库提供传感器底层通信与数据解析能力
+# 原厂二进制默认不提交到 Git；允许使用方显式指定已获授权的本地 SDK 路径。
+set(PTSDK_LIBRARY
+  "${CMAKE_CURRENT_SOURCE_DIR}/lib/libPTSDK.a"
+  CACHE FILEPATH "Path to the Contactile PTSDK static library"
+)
+if(NOT EXISTS "${PTSDK_LIBRARY}")
+  message(FATAL_ERROR
+    "Contactile PTSDK library not found: ${PTSDK_LIBRARY}\n"
+    "Copy the licensed x86_64 libPTSDK.a into papillarray_ros2_v2/lib, "
+    "or configure with -DPTSDK_LIBRARY=/absolute/path/to/libPTSDK.a"
+  )
+endif()
 target_link_libraries(papillarray_ros2_node
-  ${CMAKE_CURRENT_SOURCE_DIR}/lib/libPTSDK.a
+  ${PTSDK_LIBRARY}
 )
 ament_target_dependencies(papillarray_ros2_node rclcpp std_msgs papillarray_interfaces)
 
@@ -59,6 +73,14 @@ install(DIRECTORY
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
+
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_csv_logger
+    test/test_csv_logger.cpp
+    src/csv_logger.cpp
+  )
+  target_include_directories(test_csv_logger PRIVATE src)
+  ament_target_dependencies(test_csv_logger papillarray_interfaces)
 endif()
 
 ament_package()

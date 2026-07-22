@@ -40,15 +40,37 @@ cd ~/ros2_contactile/src
 git clone https://github.com/langxin11/contactile-papillarray-ros2.git
 ```
 
-安装依赖并构建：
+安装 ROS 依赖：
 
 ```bash
 cd ~/ros2_contactile
 source /opt/ros/jazzy/setup.bash
 rosdep install --from-paths src --ignore-src -r -y
-colcon build --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
+```
+
+如果只使用自研 Python 串口驱动，不需要原厂 PTSDK：
+
+```bash
+colcon build \
+  --packages-select papillarray_interfaces papillarray_serial_driver \
+  --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3
 source install/setup.bash
 ```
+
+构建原厂 C++ 驱动前，需要从已获授权的 Contactile SDK 中提供 x86_64
+`libPTSDK.a`。静态库不随 Git 仓库分发，可以复制到
+`papillarray_ros2_v2/lib/libPTSDK.a`，或者显式指定路径：
+
+```bash
+colcon build \
+  --packages-select papillarray_interfaces papillarray_ros2_v2 \
+  --cmake-args \
+    -DPython3_EXECUTABLE=/usr/bin/python3 \
+    -DPTSDK_LIBRARY=/absolute/path/to/libPTSDK.a
+source install/setup.bash
+```
+
+如果静态库缺失，CMake 会给出明确错误。Python 串口驱动的构建和运行不受影响。
 
 每次打开新终端都需要重新加载 ROS 2 和工作区环境：
 
@@ -98,6 +120,17 @@ ros2 launch papillarray_ros2_v2 papillarray.launch.py \
 ```
 
 使用哪套驱动时，Controller 固件的串口波特率必须与 launch 参数一致。
+
+原厂 SDK 的 Linux 日志存在生成 `000` 权限文件的问题，因此 C++ 节点禁用了 SDK 内置
+日志。需要记录以滑移状态为主的时间序列 CSV 时，显式指定日志目录：
+
+```bash
+ros2 launch papillarray_ros2_v2 papillarray.launch.py \
+  log_dir:=$HOME/contactile_logs
+```
+
+默认日志包含所有 pillar 的接触状态和 `slip_state`；增加
+`csv_pillar_detail:=true` 后才会追加逐 pillar 位移和力。
 
 ## Topic 与消息
 
@@ -190,5 +223,6 @@ colcon test-result --verbose
 
 ## 许可说明
 
-`papillarray_ros2_v2` 包含 Contactile 原厂 PTSDK 头文件和静态库。本仓库应保持私有；在公开
-发布或二次分发原厂文件前，需要先确认 Contactile SDK 的许可条款。
+`papillarray_ros2_v2` 包含经过兼容性修复的 Contactile PTSDK 头文件，但 Git 仓库不包含
+原厂静态库。使用者需要自行提供已获授权的 `libPTSDK.a`；在公开发布或二次分发原厂文件前，
+仍需要先确认 Contactile SDK 的许可条款。

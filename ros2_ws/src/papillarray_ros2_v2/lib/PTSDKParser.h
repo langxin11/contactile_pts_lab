@@ -1,6 +1,7 @@
 #ifndef PTSDKPARSER_H
 #define PTSDKPARSER_H
-#endif
+
+// Workaround for vendor bug: 原厂头文件的 include guard 在文件开头过早结束。
 
 #ifdef _WIN32
 #ifndef PTSDK_CPP_LIB_H
@@ -125,3 +126,5 @@ public:
 	void copyAndResetSample(OUT PTSDKSensor *pSensorsDest[MAX_NSENSOR]);
 
 };
+
+#endif  // PTSDKPARSER_H

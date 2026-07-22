@@ -1,6 +1,7 @@
 #ifndef PTSDKSENSOR_H
 #define PTSDKSENSOR_H
-#endif
+
+// Workaround for vendor bug: 原厂头文件的 include guard 在文件开头过早结束。
 
 #ifdef _WIN32
 #ifndef PTSDK_CPP_LIB_H
@@ -197,3 +198,5 @@ public:
 	bool isSensorInContact(void);
 
 };
+
+#endif  // PTSDKSENSOR_H

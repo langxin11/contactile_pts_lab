@@ -4,7 +4,10 @@ PapillArray 触觉传感器的 ROS 2 驱动节点，通过串口与传感器集�
 
 ## 包说明
 
-本包是 PapillArray 传感器在 ROS 2 环境下的核心驱动。它封装了 Contactile 官方 PTSDK 静态库 (`libPTSDK.a`)，通过串口与传感器硬件通信，并将采集到的位移、力、力矩、摩擦系数、滑动状态等数据以 ROS 2 Topic 形式发布，同时提供偏置校准和滑动检测等服务接口。
+本包是 PapillArray 传感器在 ROS 2 环境下的核心驱动。它链接用户本地安装的 Contactile
+官方 PTSDK 静态库 (`libPTSDK.a`)，通过串口与传感器硬件通信，并将采集到的位移、力、
+力矩、摩擦系数、滑动状态等数据以 ROS 2 Topic 形式发布，同时提供偏置校准和滑动检测
+等服务接口。由于原厂 SDK 的许可需要单独确认，Git 仓库不分发 PTSDK 静态库。
 
 ## 硬件架构
 
@@ -59,10 +62,29 @@ PapillArray 触觉传感器的 ROS 2 驱动节点，通过串口与传感器集�
 | `byte_size` | `8` | 数据位宽 |
 | `is_flush` | `true` | 是否在缓冲区溢出时清空硬件输入缓冲 |
 | `sampling_rate` | `500` | 采样频率（Hz）：100、250、500 或 1000 |
+| `log_dir` | 空字符串 | CSV 日志目录；为空时关闭日志 |
+| `csv_pillar_detail` | `false` | 是否追加逐 pillar 位移和力；接触与滑移状态始终记录 |
 
 ## 快速开始
 
-### 1. 编译
+### 1. 准备 PTSDK 静态库
+
+把已获授权的 x86_64 静态库复制到：
+
+```text
+papillarray_ros2_v2/lib/libPTSDK.a
+```
+
+也可以在构建时传入绝对路径，不需要复制：
+
+```bash
+colcon build --packages-select papillarray_interfaces papillarray_ros2_v2 \
+  --cmake-args -DPTSDK_LIBRARY=/absolute/path/to/libPTSDK.a
+```
+
+缺少静态库时，CMake 会停止并给出上述配置提示，不会等到链接阶段才失败。
+
+### 2. 编译
 
 ```bash
 cd ros2_ws
@@ -70,13 +92,13 @@ colcon build --packages-select papillarray_interfaces papillarray_ros2_v2
 source install/setup.bash
 ```
 
-### 2. 启动（默认参数）
+### 3. 启动（默认参数）
 
 ```bash
 ros2 launch papillarray_ros2_v2 papillarray.launch.py
 ```
 
-### 3. 自定义参数启动
+### 4. 自定义参数启动
 
 ```bash
 ros2 launch papillarray_ros2_v2 papillarray.launch.py \
@@ -85,7 +107,7 @@ ros2 launch papillarray_ros2_v2 papillarray.launch.py \
   n_sensors:=1
 ```
 
-### 4. 查看传感器数据
+### 5. 查看传感器数据
 
 ```bash
 # 查看传感器 0 的实时数据
@@ -95,7 +117,7 @@ ros2 topic echo /hub_0/sensor_0
 ros2 topic hz /hub_0/sensor_0
 ```
 
-### 5. 调用服务
+### 6. 调用服务
 
 ```bash
 # 启动滑动检测
@@ -110,7 +132,7 @@ ros2 service call /hub_0/send_bias_request papillarray_interfaces/srv/BiasReques
 - `rclcpp` — ROS 2 C++ 客户端库
 - `std_msgs` — ROS 2 标准消息
 - `papillarray_interfaces` — PapillArray 自定义接口
-- `libPTSDK.a` — Contactile 官方 PTSDK 静态库（已包含在 `lib/` 目录，支持 x86_64 和 ARM 多平台）
+- `libPTSDK.a` — Contactile 官方 PTSDK 静态库，需要用户从已获授权的 SDK 中提供
 
 ## 数据流
 
@@ -128,6 +150,30 @@ ros2 service call /hub_0/send_bias_request papillarray_interfaces/srv/BiasReques
                        └─ 发布 SensorState 消息到对应 Topic
 ```
 
-## 日志
+## CSV 时间序列日志
 
-驱动运行日志可通过 ROS 2 日志系统查看。SDK 层的 CSV 数据日志默认写入 `~/.ros/Logs/` 目录。
+原厂 SDK 日志在当前 Linux 版本中可能生成权限为 `000` 的文件，因此节点默认禁用 SDK
+日志，改用自身的可配置 CSV 写入器。CSV 默认关闭；启用示例：
+
+```bash
+ros2 launch papillarray_ros2_v2 papillarray.launch.py \
+  log_dir:=$HOME/contactile_logs
+```
+
+默认 CSV 每个传感器、每个采样时刻写一行，包含：
+
+- Controller 时间戳和 ROS 时间戳；
+- 全局力、全局力矩、摩擦估计和目标抓握力；
+- 滑移检测状态；
+- 所有 pillar 的接触状态和 `slip_state`。
+
+需要同时保存逐 pillar 位移和力时使用：
+
+```bash
+ros2 launch papillarray_ros2_v2 papillarray.launch.py \
+  log_dir:=$HOME/contactile_logs \
+  csv_pillar_detail:=true
+```
+
+日志文件权限设置为 `0600`，仅当前用户可读写。为了限制 500 Hz 采集回调中的磁盘开销，
+写入使用标准流缓存，并每 500 行主动刷新一次。

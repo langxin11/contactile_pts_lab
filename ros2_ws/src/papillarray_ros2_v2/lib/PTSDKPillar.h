@@ -1,6 +1,7 @@
 #ifndef PTSDKPILLAR_H
 #define PTSDKPILLAR_H
-#endif
+
+// Workaround for vendor bug: 原厂头文件的 include guard 在文件开头过早结束。
 
 #ifdef _WIN32
 #ifndef PTSDK_CPP_LIB_H
@@ -48,3 +49,5 @@ public:
 	double getForceT(void); 	// Gets the current tangential (XY) force on the pillar tip
 	bool isInContact(void); 	// Gets whether the pillar normal force exceeds the threshold for contact
 };
+
+#endif  // PTSDKPILLAR_H
