@@ -13,7 +13,9 @@
     Type 1 = Hub (PacketCounter:4 + Timestamp_us:8)
     Type 3 = Resolved Pillar Data
     Type 4 = Resolved Global Data
-    Type 5/6/7 = 滑动/传感器滑动等 (本模块暂不解析)
+    Type 5 = Pillar 滑动状态与摩擦估计
+    Type 6 = Sensor 滑动检测状态、摩擦估计与目标抓握力
+    Type 7 = 此版本厂商 SDK 未定义；以原始字节保留，避免猜测其布局
 
 Resolved Pillar Data 块: Ns(2) + [sensor 偏移表 Ns*ISZ] + 每 sensor{ Np(2) +
     [pillar 偏移表 Np*ISZ] + 每 pillar( Type 0x02:2 + Fx,Fy,Fz,Dx,Dy,Dz:6*float32 ) }
@@ -24,7 +26,7 @@ Resolved Global Data 块: Ns(2) + [sensor 偏移表 Ns*ISZ] + 每 sensor( Type 0
 from __future__ import annotations
 
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -33,6 +35,9 @@ _END = bytes([0xAA, 0xBB, 0xCC, 0xDD])
 _TYPE_HUB = 1
 _TYPE_PILLAR = 3
 _TYPE_GLOBAL = 4
+_TYPE_PILLAR_SLIP = 5
+_TYPE_SENSOR_SLIP = 6
+_TYPE_RESERVED = 7
 _NDIM = 3
 
 
@@ -47,6 +52,14 @@ class ParsedPacket:
         pillar_displacements: 每 sensor 的 pillar 位移，list[np.ndarray shape=(Np,3)]，单位 mm。
         global_forces: 每 sensor 全局力，list[np.ndarray shape=(3,)]，单位 N。
         global_torques: 每 sensor 全局力矩，list[np.ndarray shape=(3,)]，单位 N·mm。
+        pillar_slip_states: 每 sensor 的 pillar 滑动状态，list[np.ndarray shape=(Np,)]。
+        pillar_friction_estimates: 每 sensor 的 pillar 摩擦估计，list[np.ndarray shape=(Np,)]。
+        slip_detection_active: 每 sensor 的滑动检测是否激活，list[bool]。
+        reference_pillar_loaded: 每 sensor 的参考 pillar 是否已加载，list[bool]。
+        sensor_friction_estimates: 每 sensor 的摩擦估计，list[float]，无估计时通常为 -1。
+        target_grip_forces: 每 sensor 防滑目标抓握力，list[float]，单位 N，无估计时通常为 -1。
+        type_7_data: Type 7 块的原始字节；厂商 v2.0 SDK 未定义其布局时为 ``bytes``，
+            包中没有该块时为 ``None``。
     """
 
     packet_counter: int
@@ -55,6 +68,13 @@ class ParsedPacket:
     pillar_displacements: list[np.ndarray]
     global_forces: list[np.ndarray]
     global_torques: list[np.ndarray]
+    pillar_slip_states: list[np.ndarray] = field(default_factory=list)
+    pillar_friction_estimates: list[np.ndarray] = field(default_factory=list)
+    slip_detection_active: list[bool] = field(default_factory=list)
+    reference_pillar_loaded: list[bool] = field(default_factory=list)
+    sensor_friction_estimates: list[float] = field(default_factory=list)
+    target_grip_forces: list[float] = field(default_factory=list)
+    type_7_data: bytes | None = None
 
     @property
     def n_sensors(self) -> int:
@@ -111,8 +131,33 @@ def parse_packet(data: bytes) -> ParsedPacket:
 
     forces, disps = _parse_pillar_block(data, offsets[_TYPE_PILLAR], isz)
     gforces, gtorques = _parse_global_block(data, offsets[_TYPE_GLOBAL], isz)
+    slip_states, pillar_friction = (
+        _parse_pillar_slip_block(data, offsets[_TYPE_PILLAR_SLIP], isz)
+        if _TYPE_PILLAR_SLIP in offsets
+        else ([], [])
+    )
+    slip_active, ref_pillar_loaded, sensor_friction, target_grip = (
+        _parse_sensor_slip_block(data, offsets[_TYPE_SENSOR_SLIP], isz)
+        if _TYPE_SENSOR_SLIP in offsets
+        else ([], [], [], [])
+    )
+    type_7_data = _extract_block(data, offsets, _TYPE_RESERVED)
 
-    return ParsedPacket(counter, timestamp, forces, disps, gforces, gtorques)
+    return ParsedPacket(
+        counter,
+        timestamp,
+        forces,
+        disps,
+        gforces,
+        gtorques,
+        slip_states,
+        pillar_friction,
+        slip_active,
+        ref_pillar_loaded,
+        sensor_friction,
+        target_grip,
+        type_7_data,
+    )
 
 
 def _parse_pillar_block(
@@ -154,6 +199,66 @@ def _parse_global_block(
         gforces.append(np.array([fx, fy, fz], dtype=np.float64))
         gtorques.append(np.array([tx, ty, tz], dtype=np.float64))
     return gforces, gtorques
+
+
+def _parse_pillar_slip_block(
+    data: bytes, off: int, isz: int
+) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    """解析 Type 5 的每 pillar 滑动状态与摩擦估计。"""
+    p = off
+    n_sensors = _u16(data, p)
+    p += 2 + n_sensors * isz  # 偏移表仅用于随机访问，连续读取可避免重复计算基址。
+    all_states, all_friction = [], []
+    for _ in range(n_sensors):
+        n_pillars = _u16(data, p)
+        p += 2 + n_pillars * isz
+        states = np.empty(n_pillars, dtype=np.int8)
+        friction = np.empty(n_pillars, dtype=np.float64)
+        for pillar_index in range(n_pillars):
+            entry_type = _u16(data, p)
+            p += 2
+            if entry_type != 1:
+                raise ValueError(f"不支持的 Type 5 pillar 条目类型: {entry_type}")
+            states[pillar_index] = struct.unpack_from("<b", data, p)[0]
+            friction[pillar_index] = struct.unpack_from("<f", data, p + 1)[0]
+            p += 5
+        all_states.append(states)
+        all_friction.append(friction)
+    return all_states, all_friction
+
+
+def _parse_sensor_slip_block(
+    data: bytes, off: int, isz: int
+) -> tuple[list[bool], list[bool], list[float], list[float]]:
+    """解析 Type 6 的传感器滑动检测状态、摩擦估计与目标抓握力。"""
+    p = off
+    n_sensors = _u16(data, p)
+    p += 2 + n_sensors * isz  # 与厂商 SDK 一致，按传感器块的连续布局读取。
+    active, reference_loaded, friction, target_grip = [], [], [], []
+    for _ in range(n_sensors):
+        entry_type = _u16(data, p)
+        p += 2
+        if entry_type != 1:
+            raise ValueError(f"不支持的 Type 6 sensor 条目类型: {entry_type}")
+        state = data[p]
+        p += 1
+        friction_estimate, target_grip_force = struct.unpack_from("<2f", data, p)
+        p += 8
+        active.append(state != 0)
+        reference_loaded.append(state == 2)
+        friction.append(float(friction_estimate))
+        target_grip.append(float(target_grip_force))
+    return active, reference_loaded, friction, target_grip
+
+
+def _extract_block(data: bytes, offsets: dict[int, int], block_type: int) -> bytes | None:
+    """按索引表边界提取未定义块，供调用方记录或后续实现解码。"""
+    if block_type not in offsets:
+        return None
+    start = offsets[block_type]
+    following_offsets = [offset for offset in offsets.values() if offset > start]
+    end = min(following_offsets, default=len(data) - 2)  # 不把帧校验和误交给未知块。
+    return data[start:end]
 
 
 class PTSProtocolReader:

@@ -219,6 +219,54 @@ class ParsePacketTest(unittest.TestCase):
         npt.assert_allclose(packet.global_forces[0], np.array([2.0, 2.1, 2.2]))
         npt.assert_allclose(packet.global_torques[1], np.array([0.51, 0.52, 0.53]))
 
+    def test_parses_slip_blocks_and_preserves_type_7_data(self) -> None:
+        """厂商 SDK 已定义 Type 5/6；未知 Type 7 必须保留而不能臆测解码。"""
+        hub_block = _build_hub_block(12, 3456)
+        sensor_specs = [
+            {
+                "pillars": [(1.0, 2.0, 3.0, 0.1, 0.2, 0.3)],
+                "global": (4.0, 5.0, 6.0, 0.4, 0.5, 0.6),
+            }
+        ]
+        pillar_block = _build_pillar_block(sensor_specs)
+        global_block = _build_global_block(sensor_specs)
+        pillar_slip_block = (
+            b"\x01\x00\x04\x00"  # Ns=1，sensor 偏移为 4。
+            b"\x01\x00\x04\x00"  # Np=1，pillar 偏移为 4。
+            b"\x01\x00" + struct.pack("<bf", 3, 0.72)
+        )
+        sensor_slip_block = (
+            b"\x01\x00\x04\x00"  # Ns=1，sensor 偏移为 4。
+            b"\x01\x00\x02" + struct.pack("<2f", 0.68, 12.5)
+        )
+        type_7_data = b"\xde\xad\xbe\xef"
+        blocks = [
+            (_TYPE_HUB, hub_block),
+            (_TYPE_PILLAR, pillar_block),
+            (_TYPE_GLOBAL, global_block),
+            (5, pillar_slip_block),
+            (6, sensor_slip_block),
+            (7, type_7_data),
+        ]
+        offset = 1 + len(blocks) * (2 + _INDEX_SIZE)
+        payload = bytearray([_INDEX_SIZE])
+        for block_type, block in blocks:
+            payload.extend(block_type.to_bytes(2, "little"))
+            payload.extend(offset.to_bytes(_INDEX_SIZE, "little"))
+            offset += len(block)
+        for _, block in blocks:
+            payload.extend(block)
+
+        packet = parse_packet(_with_checksum(bytes(payload)))
+
+        npt.assert_array_equal(packet.pillar_slip_states[0], np.array([3], dtype=np.int8))
+        npt.assert_allclose(packet.pillar_friction_estimates[0], np.array([0.72]))
+        self.assertEqual(packet.slip_detection_active, [True])
+        self.assertEqual(packet.reference_pillar_loaded, [True])
+        self.assertAlmostEqual(packet.sensor_friction_estimates[0], 0.68)
+        self.assertAlmostEqual(packet.target_grip_forces[0], 12.5)
+        self.assertEqual(packet.type_7_data, type_7_data)
+
     def test_raises_when_required_blocks_are_missing(self) -> None:
         payload = bytearray()
         payload.append(_INDEX_SIZE)
