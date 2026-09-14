@@ -27,7 +27,7 @@ import numpy as np
 import typer
 import yaml
 
-from pts_protocol_compare import SerialTeeRelay, parse_capture_packets
+from pts_protocol_compare import SerialTeeRelay, _ByteSequenceFilter, parse_capture_packets
 
 DEFAULT_SENSOR_COUNT = 2
 STANDARD_GRAVITY_M_PER_SEC2 = 9.80665
@@ -40,32 +40,6 @@ DEFAULT_CONFIG_PATH = pathlib.Path("../config/force_accuracy.yaml")
 app = typer.Typer(no_args_is_help=True)
 
 SDK_HEARTBEAT_MESSAGE = b"INF: Still sampling...\n"
-
-
-class _ByteSequenceFilter:
-    """跨读取块删除一个精确字节序列，同时立即转发其他内容。"""
-
-    def __init__(self, target: bytes) -> None:
-        self._target = target
-        self._pending = bytearray()
-
-    def feed(self, data: bytes) -> bytes:
-        """过滤一个字节块，并保留可能跨块的目标前缀。"""
-        output = bytearray()
-        for value in data:
-            self._pending.append(value)
-            while self._pending and not self._target.startswith(self._pending):
-                output.append(self._pending[0])
-                del self._pending[0]
-            if self._pending == self._target:
-                self._pending.clear()
-        return bytes(output)
-
-    def finish(self) -> bytes:
-        """返回流结束时尚未匹配成目标的字节。"""
-        remaining = bytes(self._pending)
-        self._pending.clear()
-        return remaining
 
 
 class _SdkStdoutFilter:
@@ -306,6 +280,7 @@ def parse_mass_input(value: str) -> float | None:
         raise ValueError("质量必须是有限的非负数值")
     return mass_g
 
+
 def parse_record_command(value: str) -> tuple[str, int | None] | None:
     """解析会话中的撤销或逻辑排除命令。
 
@@ -364,7 +339,9 @@ def exclude_measurement(
     raise ValueError(f"未找到记录 {record_id}")
 
 
-def exclude_latest_measurement(measurements: list[Measurement]) -> tuple[list[Measurement], Measurement]:
+def exclude_latest_measurement(
+    measurements: list[Measurement],
+) -> tuple[list[Measurement], Measurement]:
     """逻辑撤销最近一条有效记录。
 
     Args:
@@ -380,6 +357,7 @@ def exclude_latest_measurement(measurements: list[Measurement]) -> tuple[list[Me
         if measurement.included:
             return exclude_measurement(measurements, measurement.record_id, "撤销：质量或放置错误")
     raise ValueError("当前没有可撤销的有效记录")
+
 
 def analyze_window(
     timestamps_us: np.ndarray,
@@ -725,7 +703,9 @@ def run_accuracy_session(
         session_start_us: int | None = None
         scheduled_index = 0
         if not interactive:
-            typer.echo(f"将按配置依次测量 {len(target_masses_g)} 个质量点；使用 --interactive 可手动输入。")
+            typer.echo(
+                f"将按配置依次测量 {len(target_masses_g)} 个质量点；使用 --interactive 可手动输入。"
+            )
         while True:
             if interactive:
                 try:
@@ -754,7 +734,9 @@ def run_accuracy_session(
                 if scheduled_index >= len(target_masses_g):
                     break
                 mass_g = target_masses_g[scheduled_index]
-                typer.echo(f"第 {scheduled_index + 1}/{len(target_masses_g)} 个质量点: {mass_g:g} g")
+                typer.echo(
+                    f"第 {scheduled_index + 1}/{len(target_masses_g)} 个质量点: {mass_g:g} g"
+                )
 
             confirmation = input(
                 f"请将 {mass_g:g} g 物体放到传感器固定位置，放稳后按 Enter；"

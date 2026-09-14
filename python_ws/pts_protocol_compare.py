@@ -127,6 +127,32 @@ class _BufferedBytesSerial:
         return chunk
 
 
+class _ByteSequenceFilter:
+    """跨读取块删除一个精确字节序列，同时立即转发其他内容。"""
+
+    def __init__(self, target: bytes) -> None:
+        self._target = target
+        self._pending = bytearray()
+
+    def feed(self, data: bytes) -> bytes:
+        """过滤一个字节块，并保留可能跨块的目标前缀。"""
+        output = bytearray()
+        for value in data:
+            self._pending.append(value)
+            while self._pending and not self._target.startswith(self._pending):
+                output.append(self._pending[0])
+                del self._pending[0]
+            if self._pending == self._target:
+                self._pending.clear()
+        return bytes(output)
+
+    def finish(self) -> bytes:
+        """返回流结束时尚未匹配成目标的字节。"""
+        remaining = bytes(self._pending)
+        self._pending.clear()
+        return remaining
+
+
 class SerialTeeRelay:
     """把真实串口双向转发到 PTY，并保存控制器发出的原始字节。"""
 
@@ -305,6 +331,25 @@ def flatten_packet(packet: ParsedPacket) -> dict[str, float | int]:
         row[f"S{sensor_index}_G_TX"] = float(global_torque[0])
         row[f"S{sensor_index}_G_TY"] = float(global_torque[1])
         row[f"S{sensor_index}_G_TZ"] = float(global_torque[2])
+
+        if sensor_index < len(packet.pillar_slip_states):
+            slip_states = packet.pillar_slip_states[sensor_index]
+            for pillar_index, slip_state in enumerate(slip_states):
+                row[f"S{sensor_index}_P{pillar_index}_slipState"] = int(slip_state)
+
+        if sensor_index < len(packet.pillar_friction_estimates):
+            friction_estimates = packet.pillar_friction_estimates[sensor_index]
+            for pillar_index, friction_estimate in enumerate(friction_estimates):
+                row[f"S{sensor_index}_P{pillar_index}_FRIC"] = float(friction_estimate)
+
+        if sensor_index < len(packet.slip_detection_active):
+            row[f"S{sensor_index}_isSDActive"] = int(packet.slip_detection_active[sensor_index])
+        if sensor_index < len(packet.reference_pillar_loaded):
+            row[f"S{sensor_index}_isRefLoaded"] = int(packet.reference_pillar_loaded[sensor_index])
+        if sensor_index < len(packet.sensor_friction_estimates):
+            row[f"S{sensor_index}_FRIC"] = float(packet.sensor_friction_estimates[sensor_index])
+        if sensor_index < len(packet.target_grip_forces):
+            row[f"S{sensor_index}_TARGET_GRIP_N"] = float(packet.target_grip_forces[sensor_index])
     return row
 
 
@@ -345,9 +390,7 @@ def compare_rows(
     max_abs_diff_field = ""
 
     comparable_fields = sorted(
-        field
-        for field in protocol_rows[0]
-        if field != "T_us" and field in sdk_rows[0]
+        field for field in protocol_rows[0] if field != "T_us" and field in sdk_rows[0]
     )
     for timestamp_us in common_timestamps:
         protocol_row = protocol_by_ts[timestamp_us]
@@ -521,7 +564,9 @@ def run_protocol_compare(
             "mismatches_csv_path": str(mismatches_csv_path),
         }
     )
-    summary_json_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    summary_json_path.write_text(
+        json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
     return ComparisonArtifacts(
         output_dir=output_dir,

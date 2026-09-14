@@ -14,7 +14,13 @@ import numpy as np
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from pts_protocol import ParsedPacket
-from pts_protocol_compare import compare_rows, flatten_packet, parse_capture_packets
+from pts_protocol_compare import (
+    _ByteSequenceFilter,
+    compare_rows,
+    flatten_packet,
+    parse_capture_packets,
+)
+from pts_protocol_compare_plot import build_slip_difference_matrix
 
 _START = bytes([0x55, 0x66, 0x77, 0x88])
 _END = bytes([0xAA, 0xBB, 0xCC, 0xDD])
@@ -83,6 +89,32 @@ class FlattenPacketTest(unittest.TestCase):
         self.assertEqual(row["S0_G_TX"], 0.4)
         self.assertEqual(row["S0_G_FY"], 5.0)
 
+    def test_flattens_type_5_and_type_6_to_sdk_log_columns(self) -> None:
+        """只有厂商日志实际提供的滑动字段才参与后续逐帧对照。"""
+        packet = ParsedPacket(
+            packet_counter=1,
+            timestamp_us=321,
+            pillar_forces=[np.array([[1.0, 2.0, 3.0]])],
+            pillar_displacements=[np.array([[0.1, 0.2, 0.3]])],
+            global_forces=[np.array([4.0, 5.0, 6.0])],
+            global_torques=[np.array([0.4, 0.5, 0.6])],
+            pillar_slip_states=[np.array([3], dtype=np.int8)],
+            pillar_friction_estimates=[np.array([0.72])],
+            slip_detection_active=[True],
+            reference_pillar_loaded=[True],
+            sensor_friction_estimates=[0.68],
+            target_grip_forces=[12.5],
+        )
+
+        row = flatten_packet(packet)
+
+        self.assertEqual(row["S0_P0_slipState"], 3)
+        self.assertEqual(row["S0_P0_FRIC"], 0.72)
+        self.assertEqual(row["S0_isSDActive"], 1)
+        self.assertEqual(row["S0_isRefLoaded"], 1)
+        self.assertEqual(row["S0_FRIC"], 0.68)
+        self.assertEqual(row["S0_TARGET_GRIP_N"], 12.5)
+
 
 class ParseCapturePacketsTest(unittest.TestCase):
     def test_replays_raw_capture_and_extracts_packets(self) -> None:
@@ -93,6 +125,83 @@ class ParseCapturePacketsTest(unittest.TestCase):
         self.assertEqual(len(packets), 1)
         self.assertEqual(packets[0].timestamp_us, 123456)
         self.assertEqual(packets[0].global_forces[0][2], 6.0)
+
+
+class SlipPlotDataTest(unittest.TestCase):
+    def test_builds_matrix_for_sdk_visible_slip_fields(self) -> None:
+        """绘图数据只包含 SDK 日志可交叉验证的滑动字段。"""
+        protocol_rows = [
+            {
+                "T_us": 10,
+                "S0_P0_slipState": 2,
+                "S0_isSDActive": 1,
+                "S0_isRefLoaded": 1,
+                "S0_FRIC": 0.65,
+                "S0_TARGET_GRIP_N": 12.0,
+            },
+            {
+                "T_us": 20,
+                "S0_P0_slipState": 3,
+                "S0_isSDActive": 1,
+                "S0_isRefLoaded": 1,
+                "S0_FRIC": 0.70,
+                "S0_TARGET_GRIP_N": 13.0,
+            },
+        ]
+        sdk_rows = [
+            {
+                "T_us": "10",
+                "S0_P0_slipState": "2",
+                "S0_isSDActive": "1",
+                "S0_isRefLoaded": "1",
+                "S0_FRIC": "0.60",
+            },
+            {
+                "T_us": "20",
+                "S0_P0_slipState": "2",
+                "S0_isSDActive": "1",
+                "S0_isRefLoaded": "1",
+                "S0_FRIC": "0.65",
+            },
+        ]
+
+        timestamps, fields, differences, skipped_count = build_slip_difference_matrix(
+            protocol_rows, sdk_rows
+        )
+
+        self.assertEqual(timestamps, [10, 20])
+        self.assertEqual(fields, ["S0_FRIC", "S0_P0_slipState", "S0_isRefLoaded", "S0_isSDActive"])
+        self.assertAlmostEqual(differences[0][0], 0.05)
+        self.assertEqual(differences[1], [0.0, 1.0])
+        self.assertEqual(skipped_count, 0)
+
+    def test_skips_nonfinite_timestamps_before_plotting(self) -> None:
+        """NaN/Inf 只舍弃对应时间戳，不能使整张图警告刷屏或失效。"""
+        protocol_rows = [
+            {"T_us": 10, "S0_FRIC": 0.6},
+            {"T_us": 20, "S0_FRIC": float("inf")},
+        ]
+        sdk_rows = [{"T_us": "10", "S0_FRIC": "0.5"}, {"T_us": "20", "S0_FRIC": "0.6"}]
+
+        timestamps, _fields, differences, skipped_count = build_slip_difference_matrix(
+            protocol_rows, sdk_rows
+        )
+
+        self.assertEqual(timestamps, [10])
+        self.assertAlmostEqual(differences[0][0], 0.1)
+        self.assertEqual(skipped_count, 1)
+
+
+class SdkHeartbeatFilterTest(unittest.TestCase):
+    def test_filters_split_sdk_heartbeat_and_keeps_warning(self) -> None:
+        """原厂 INF 心跳跨读取块出现时也不能泄漏到终端。"""
+        sequence_filter = _ByteSequenceFilter(b"INF: Still sampling...\n")
+
+        output = sequence_filter.feed(b"INF: Still sam")
+        output += sequence_filter.feed(b"pling...\nWRN: keep\n")
+        output += sequence_filter.finish()
+
+        self.assertEqual(output, b"WRN: keep\n")
 
 
 class CompareRowsTest(unittest.TestCase):
