@@ -11,3 +11,4 @@ Contactile PTS Lab 文档
    notes/cpp_sdk_guide
    notes/ros2_integration
    notes/vis_software
+   notes/signal_filtering
