@@ -17,17 +17,29 @@ echo "========================================"
 echo ""
 echo "[1/4] 检查系统依赖..."
 
+command -v git >/dev/null 2>&1 || { echo "错误: 未找到 git"; exit 1; }
 command -v g++ >/dev/null 2>&1 || { echo "错误: 未找到 g++，请安装 build-essential"; exit 1; }
 command -v cmake >/dev/null 2>&1 || { echo "错误: 未找到 cmake"; exit 1; }
 command -v uv >/dev/null 2>&1 || { echo "错误: 未找到 uv，请先安装: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
 
-echo "  ✓ g++, cmake, uv 均已安装"
+echo "  ✓ git, g++, cmake, uv 均已安装"
 
 # ------------------------------------------------------------------
-# 2. 编译 C++ 工作区
+# 2. 初始化 ROS2 源码子模块
 # ------------------------------------------------------------------
 echo ""
-echo "[2/4] 编译 C++ 工作区..."
+echo "[2/5] 初始化 ROS2 源码子模块..."
+
+cd "${PROJECT_ROOT}"
+git submodule update --init --recursive
+
+echo "  ✓ ROS2 源码子模块已就绪"
+
+# ------------------------------------------------------------------
+# 3. 编译 C++ 工作区
+# ------------------------------------------------------------------
+echo ""
+echo "[3/5] 编译 C++ 工作区..."
 
 cd "${PROJECT_ROOT}/cpp_ws"
 mkdir -p build
@@ -38,10 +50,10 @@ make -j"$(nproc)"
 echo "  ✓ C++ 编译完成，可执行文件位于 cpp_ws/build/minimal_reader"
 
 # ------------------------------------------------------------------
-# 3. 初始化 Python 虚拟环境（完整环境包含原厂 cp310 wheel）
+# 4. 初始化 Python 虚拟环境（完整环境包含原厂 cp310 wheel）
 # ------------------------------------------------------------------
 echo ""
-echo "[3/4] 初始化 Python 虚拟环境（Python 3.10，包含两种读取方式）..."
+echo "[4/5] 初始化 Python 虚拟环境（Python 3.10，包含两种读取方式）..."
 
 cd "${PROJECT_ROOT}/python_ws"
 
@@ -71,10 +83,10 @@ echo "  ✓ Python 环境就绪"
 echo "     激活方式: source python_ws/.venv/bin/activate"
 
 # ------------------------------------------------------------------
-# 4. 编译 ROS2 工作区
+# 5. 编译 ROS2 工作区
 # ------------------------------------------------------------------
 echo ""
-echo "[4/4] 编译 ROS2 工作区..."
+echo "[5/5] 编译 ROS2 工作区..."
 
 if command -v colcon >/dev/null 2>&1; then
     cd "${PROJECT_ROOT}/ros2_ws"

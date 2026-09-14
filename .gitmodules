@@ -1,0 +1,4 @@
+[submodule "ros2_ws/src"]
+	path = ros2_ws/src
+	url = https://github.com/langxin11/contactile-papillarray-ros2.git
+	branch = main

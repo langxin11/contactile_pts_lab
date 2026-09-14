@@ -1,6 +1,0 @@
-# 这些文件由 CMake 按 CPU 架构和 ARM 浮点 ABI 自动选择。
-!lib/libPTSDK.a
-!lib/libPTSDK_aarch64.a
-!lib/libPTSDK_arm32_hf.a
-!lib/libPTSDK_arm32_sf.a
-!lib/libPTSDK_arm32v6_hf.a

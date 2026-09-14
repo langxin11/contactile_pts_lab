@@ -18,7 +18,7 @@ Ubuntu 24.04 x86_64 环境下 Contactile PTS（PapillArray）触觉传感器的 
 ├── vendor/ROS2/              原厂 ROS2 包只读副本
 ├── cpp_ws/                   C++ 实验区
 ├── python_ws/                Python 实验区 (uv + Python 3.10)
-├── ros2_ws/                  ROS2 实验区 (colcon)
+├── ros2_ws/                  ROS2 实验区 (colcon，src 为 Git submodule)
 ├── config/                   统一配置 (YAML)
 ├── scripts/                  一键运行脚本
 ├── udev/                     udev 规则
@@ -30,6 +30,12 @@ Ubuntu 24.04 x86_64 环境下 Contactile PTS（PapillArray）触觉传感器的 
 ## 快速开始
 
 ```bash
+# 首次克隆时同时初始化 ROS2 源码子模块
+git clone --recurse-submodules git@github.com:langxin11/contactile_pts_lab.git
+
+# 已有工作副本只需执行一次
+git submodule update --init --recursive
+
 # 1. 一键初始化（编译 C++、安装 Python 环境、编译 ROS2）
 bash scripts/setup.sh
 

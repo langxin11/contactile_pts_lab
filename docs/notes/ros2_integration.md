@@ -21,7 +21,12 @@
 
 ## 2. 包结构
 
-原厂 ROS2 包位于 `vendor/ROS2/ros2_contactile_sensors/`。本仓库已扁平化到标准 colcon 结构，包直接位于 `ros2_ws/src/` 下。
+原厂 ROS2 包位于 `vendor/ROS2/ros2_contactile_sensors/`。实验用 ROS2 源码由
+`contactile-papillarray-ros2` 独立仓库管理，并以 Git submodule 形式固定在
+`ros2_ws/src/` 下。各个 package 仍直接位于该目录，colcon 工作区结构不变。
+
+克隆主仓库时使用 `git clone --recurse-submodules`；已有工作副本执行
+`git submodule update --init --recursive` 即可初始化源码。
 
 ### papillarray_ros2_v2（主驱动包）
 
