@@ -1,156 +1,172 @@
 # Contactile PTS Lab
 
-Ubuntu 24.04 x86_64 环境下 Contactile PTS（PapillArray）触觉传感器的 C++ / Python / ROS2 实验环境。
+Ubuntu 24.04 x86_64 环境下 Contactile PTS（PapillArray）触觉传感器的软硬件实验平台。
 
-## 硬件
+本项目围绕三项核心任务主线递进构建：
+**[阶段一] 传感器 SDK 使用 ➔ [阶段二] 基本数据分析 ➔ [阶段三] 自研协议确保准确性**。
 
-| 设备 | 说明 |
-|------|------|
-| 传感器 | Contactile PTS（型号见传感器标签） |
-| 连接 | USB / 串口 |
-| 主机 | Ubuntu 24.04 x86_64 |
+```mermaid
+flowchart LR
+    subgraph S1["阶段一：SDK 使用与基准"]
+        A1["硬件接入与检测<br/>(make check)"] --> A2["官方闭源 SDK 跑通<br/>(C++ / Python / ROS 2)"]
+    end
 
-## 目录结构
+    subgraph S2["阶段二：基本数据分析"]
+        B1["3D 触觉力可视化<br/>(make vis)"]
+        B2["噪声 PSD 频谱分析<br/>(noise_psd_analysis.py)"]
+        B3["低通滤波特性研究<br/>(signal_filtering)"]
+    end
 
+    subgraph S3["阶段三：自研协议与精度验证"]
+        C1["自研开源纯串口驱动<br/>(make read-serial)"]
+        C2["同源单流硬件中继比对<br/>(make compare-relay)"]
+        C3["质量—法向力标定闭环<br/>(make measure-force)"]
+    end
+
+    S1 --> S2 --> S3
 ```
-├── vendor/C++LIN/            原厂 C++ SDK 只读副本
-├── vendor/PythonLIN/         原厂 Python wheel 只读副本
-├── vendor/ROS2/              原厂 ROS2 包只读副本
-├── cpp_ws/                   C++ 实验区
-├── python_ws/                Python 实验区 (uv + Python 3.10)
-├── ros2_ws/                  ROS2 实验区 (colcon，src 为 Git submodule)
-├── config/                   统一配置 (YAML)
-├── scripts/                  一键运行脚本
-├── udev/                     udev 规则
-├── data/                     实验数据归档
-├── models/                   3D STEP 模型
-└── docs/                     手册 + 笔记
-```
 
-## 快速开始
+---
+
+## 3 分钟快速上手 (Quick Start)
 
 ```bash
-# 首次克隆时同时初始化 ROS2 源码子模块
+# 1. 首次克隆并初始化 ROS2 子模块
 git clone --recurse-submodules git@github.com:langxin11/contactile_pts_lab.git
+cd contactile_pts_lab
 
-# 已有工作副本只需执行一次
-git submodule update --init --recursive
+# 2. 一键配置环境（编译 C++、配置 Python 3.10 环境、拉取子模块）
+make setup
 
-# 1. 一键初始化（编译 C++、安装 Python 环境、编译 ROS2）
-bash scripts/setup.sh
+# 3. 检查硬件连接与串口权限
+make check
 
-# 2. 检查硬件连接
-bash scripts/check_usb.sh
-
-# 3. 选择链路运行
-
-# C++
-bash scripts/run_cpp.sh
-
-# Python：纯串口协议（默认，不依赖原厂 wheel）
-bash scripts/run_python.sh quick_read_serial
-
-# Python：原厂 wheel
-bash scripts/run_python.sh quick_read_sdk
-
-# ROS2
-bash scripts/run_ros2.sh --real
+# 4. 实时读取触觉传感器数据（自研纯串口协议，开箱即用）
+make read-serial
 ```
 
-## Python 两种读取方式
+---
+
+## 核心任务主线指南
+
+### 阶段一：传感器 SDK 使用与基准确立
+
+掌握原厂 C++、Python、ROS 2 三条技术链路，确立官方闭源算法基准（Baseline）。
+
+| 链路 | 入口命令 | 驱动底层 | 适用场景 |
+|:---|:---|:---|:---|
+| **C++ SDK** | `make read-cpp` | `libPTSDK.a` 静态库 | 极低延迟控制、嵌入式部署 |
+| **Python SDK** | `make read-sdk` | 原厂 `cp310` wheel | 官方算法复现、三维力矩基准对比 |
+| **ROS 2** | `make run-ros2` | `contactile-papillarray-ros2` (Jazzy) | 机械臂末端集成、机器人闭环控制 |
+
+> **为什么提供两种 Python 驱动？**
+> - **官方 SDK 链路** (`quick_read_sdk.py`)：调用原厂预编译 C++ 扩展，包含官方力与滑移估计黑盒，但锁死在 Python 3.10 和 x86_64 架构。
+> - **自研串口驱动** (`quick_read_serial.py`)：纯 Python 解析 PTS 二进制数据包，免编译、支持 Python 3.10+、完美适配 Ubuntu 24.04 与 ARM 架构（如树莓派、Jetson），高刷新无额外开销。
+
+### 阶段二：基本数据分析与物理特性
+
+探索传感器物理特性，研究噪声本底与动态响应：
+
+1. **实时 3D 触觉力可视化**：
+   ```bash
+   make vis
+   ```
+   启动基于 DearPyGui 的轻量级可视化面板，实时渲染 3×3 柱阵列形变与局部 3D 受力。
+2. **本底噪声与功率谱密度 (PSD) 分析**：
+   ```bash
+   make noise-psd CSV=data/protocol_compare/<会话目录>/protocol.csv
+   ```
+   分析静止无负载下的噪声频段分布，定量指导一阶数字滤波器的截止频率 $f_c$ 选择。详见 [噪声 PSD 实验手册](docs/experiments/noise_psd.md)。
+3. **信号滤波理论**：
+   详阅 [传感器电气特性与低通滤波笔记](docs/notes/signal_filtering.md)。
+
+### 阶段三：自研协议开发与准确性闭环
+
+为了摆脱原厂闭源黑盒与运行平台限制，本项目研发了纯串口二进制通信驱动，并通过严密的**同源双轨实验**确保自研协议的准确性达到工业级水准：
+
+1. **同源单流硬件中继比对 (Twin Relay)**：
+   ```bash
+   make compare-relay
+   ```
+   `pts_protocol_compare.py` 打开物理串口读取字节，**同一批原始数据流同时中继给官方 SDK 并喂入自研协议解析器**。在同一次物理放置、同一时间窗口下进行零时钟抖动比对，彻底消除人为放置误差。
+2. **质量—法向压力标定与测量**：
+   ```bash
+   make measure-force
+   ```
+   引导式阶梯加载测量，支持终端撤销（`u`）、排除（`d <ID>`），并在测试结束后自动调用 IEEE 规范的绘图脚本。详见 [质量标定实验手册](docs/experiments/force_accuracy.md)。
+3. **单元测试与协议校验**：
+   ```bash
+   make test
+   ```
+
+---
+
+## 统一任务速查表 (Makefile)
+
+根目录下提供了标准的任务流水线命令，免去频繁进入子目录或记忆长参数的烦恼：
+
+| 命令 | 阶段 / 类别 | 功能说明 |
+|:---|:---|:---|
+| `make check` | 设备检查 | 检查 USB 硬件连接与 dialout 权限 |
+| `make setup` | 环境配置 | 一键拉取子模块、编译 C++ 并安装 Python 依赖 |
+| `make read-serial` | 阶段三 (推荐) | [Python] 运行自研纯串口协议实时读取（全平台支持） |
+| `make read-sdk` | 阶段一 | [Python] 运行官方 SDK 读取基准 |
+| `make read-cpp` | 阶段一 | [C++] 编译并运行官方极简 C++ 读取器 |
+| `make run-ros2` | 阶段一 | [ROS2] 启动 ROS 2 触觉发布节点 |
+| `make vis` | 阶段二 | 启动 DearPyGui 3D 触觉力与形变实时可视化 GUI |
+| `make noise-psd` | 阶段二 | 运行空载噪声本底与 PSD 功率谱密度分析 (`CSV=...`) |
+| `make measure-force`| 阶段三 | 启动质量—法向压力阶梯标定测量 |
+| `make compare-relay`| 阶段三 | 启动官方 SDK vs 自研协议同源实时中继双轨比对 |
+| `make test` | 质量保证 | 运行 Python 工作区完整单元测试套件 |
+| `make docs` | 文档手册 | 编译 Sphinx HTML 手册并输出本地预览链接 |
+| `make clean` | 缓存清理 | 清除编译构建与临时生成物 |
+
+---
+
+## 本地完整文档体系 (Sphinx)
+
+本项目配套有体系化的技术笔记与原厂规格书中文拆解：
 
 ```bash
-cd python_ws
-
-# 纯串口协议：不安装原厂 wheel
-uv sync
-uv run python quick_read_serial.py --help
-
-# 原厂 SDK：安装 cp310 wheel
-uv sync --extra sdk
-uv run --extra sdk python quick_read_sdk.py --help
-
-# GUI 同时依赖原厂 wheel
-uv sync --extra gui
-uv run --extra gui python pts_vis.py --help
+make docs
+# 或启动热预览服务:
+bash scripts/build_docs.sh --serve
 ```
 
-`pts_protocol_compare.py` 提供串口中继与离线协议解析能力，让两种实现读取同一批字节，
-不作为日常读取入口。
+文档涵盖：
+- [产品概述与传感器规格](docs/notes/sensor_overview.md)
+- [通信协议详解 (PTSCOM 规范拆解)](docs/notes/communication_protocol.md)
+- [C++ Linux SDK 使用笔记](docs/notes/cpp_sdk_guide.md)
+- [Python SDK 使用与兼容笔记](docs/notes/python_sdk_guide.md)
+- [ROS 2 集成与架构说明](docs/notes/ros2_integration.md)
+- [质量—法向压力实验手册](docs/experiments/force_accuracy.md)
+- [噪声 PSD 分析手册](docs/experiments/noise_psd.md)
 
-### 质量—法向压力准确性实验
+---
 
-测量与绘图已解耦。默认配置会在测量结束并释放串口后，以独立子进程自动调用绘图钩子：
-
-```bash
-cd python_ws
-uv run --extra experiment python force_accuracy_measure.py \
-  --config ../config/force_accuracy.yaml
-```
-
-如只采集 CSV，把 YAML 中的 `plot.auto` 改为 `false`，然后运行：
-
-```bash
-uv run --extra measurement python force_accuracy_measure.py \
-  --config ../config/force_accuracy.yaml
-```
-
-每次测量都会创建独立的时间戳会话目录。已有 CSV 可以随时单独重绘，例如：
-
-```bash
-uv run --extra plot python force_accuracy_plot.py \
-  ../data/force_accuracy/20260720_120000_000000/measurements.csv \
-  --config ../config/force_accuracy.yaml
-```
-
-测量脚本从 YAML 读取串口、传感器和稳定判据。真实串口字节会被中继给官方 SDK，
-同时原样保存为 `capture_raw.bin`；测量结束后，自研串口解析器按相同的控制器时间戳稳定窗口
-离线计算第二组结果，因此两条链路比较的是同一次放置、同一批数据，而不是两次独立实验。
-`measurements.csv` 同时保存 SDK、自研协议及两者差值，图中以圆点表示 `Official SDK`，
-空心方块表示 `Serial protocol`。
-
-每个质量点都会原子更新 CSV。输入 `q` 并回车后，脚本先保存数据、释放串口，再按
-`plot.auto` 调用绘图脚本；绘图失败只会输出警告，不影响 CSV。原厂 SDK 的
-`INF: Still sampling...` 会被过滤，其他警告和错误保留。绘图采用 SciencePlots 的 IEEE
-单栏样式。
-
-若发现质量放错或物体放置错误，可在下一次输入或放置确认时输入 `u` 撤销最近一条有效记录，
-或输入 `d <记录号>`（如 `d 3`）逻辑排除指定记录。CSV 会保留原始数值并写入 `included=false`
-
-默认测量顺序由 YAML 的 `measurement.target_masses_g` 决定；数组元素是电子秤的实际质量，
-重复元素表示在该质量下重复测量。临时补点或组合质量可使用 `--interactive`，在终端逐项输入。
-
-## 三条链路对比
-
-| | C++ | Python | ROS2 |
-|------|-----|--------|------|
-| 入口 | `cpp_ws/src/minimal_reader.cpp` | `quick_read_serial.py` 或 `quick_read_sdk.py` | ROS2 topic |
-| SDK | `libPTSDK.a` + 头文件 | 纯 `pyserial` 协议或 `cp310` wheel | 同 C++ |
-| Python 版本 | — | 纯串口 >=3.10；wheel 为 3.10 | 系统 3.12 |
-| 波特率 | 9600 | 115200 | 9600 |
-| 适用场景 | 最低延迟, 嵌入式部署 | 快速原型, 数据分析 | 机器人系统集成 |
-
-## 参数速查
+## 硬件连接与配置速查
 
 | 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `port` | `/dev/ttyACM0` | 串口设备 |
-| `baud_rate` | 9600 (C++/ROS2) / 115200 (Python) | 波特率 |
-| `sensor_count` | 1 | 连接的传感器数量 |
-| `bias_on_startup` | true | 启动时自动零点校准 |
+|:---|:---|:---|
+| `port` | `/dev/ttyACM0` | 传感器虚拟串口设备路径 |
+| `baud_rate` | 9600 (C++/ROS2/SDK) / 115200 (Python自研) | 串口波特率 |
+| `sensor_count` | 1 | 连接的传感器数量（单个控制器最多支持 2 个） |
+| `bias_on_startup` | true | 启动时自动进行零点校准（**必须确保传感器空载**） |
 
-## 串口权限
+### 串口权限设置
 
 ```bash
 sudo usermod -aG dialout $USER
-# 注销并重新登录生效
+# 注销并重新登录系统生效
 ```
 
-## 故障排查
+---
 
-| 现象 | 原因 | 解决 |
-|------|------|------|
-| 连接失败 | 设备未插入或权限不足 | `ls /dev/ttyACM*` + 检查 dialout 组 |
-| Python import 失败 | 未激活 venv 或 wheel 未安装 | `source python_ws/.venv/bin/activate` |
-| 无负载读数不为零 | Bias 时有负载 | 重启节点或调用 bias 服务 |
-| colcon 找不到 catkin_pkg | uv python 干扰 | 加 `-DPython3_EXECUTABLE=/usr/bin/python3` |
+## 常见故障排查 (Troubleshooting)
+
+| 故障现象 | 潜在原因 | 推荐排查方案 |
+|:---|:---|:---|
+| **设备打不开 / Permission denied** | 未加入 dialout 组或串口被其他进程占用 | 运行 `make check`；若被占用，使用 `fuser -v /dev/ttyACM*` 排查残留进程 |
+| **无负载时读数不为 0** | 零点校准（Bias）时传感器表面受压或有重物 | 移除表面一切接触，重新运行读取命令或调用 reset bias |
+| **Python import ptsdk 失败** | 未在 Python 3.10 环境或 wheel 未安装 | 运行 `make setup` 或检查 `python_ws/.python-version` 是否为 3.10 |
+| **colcon build 找不到 catkin_pkg** | uv 虚拟环境中的 Python 污染了 ROS2 构建路径 | 编译时追加 `-DPython3_EXECUTABLE=/usr/bin/python3` |
