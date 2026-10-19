@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""兼容旧入口，协议实现已集中到 ROS 2 可安装模块。"""
+"""兼容旧入口，协议实现来自共享核心包 papillarray-pts。"""
 
-from papillarray_serial_driver.protocol import (
+from papillarray_pts.protocol import (
     ParsedPacket,
     PTSProtocolReader,
     parse_packet,

@@ -1061,19 +1061,28 @@ wheels = [
 ]
 
 [[package]]
+name = "papillarray-pts"
+version = "0.1.0"
+source = { git = "https://github.com/langxin11/papillarray-pts.git?rev=v0.1.0#f2adc0637a379483feda3bcdc20e369b6bdae610" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pyserial" },
+]
+
+[[package]]
 name = "papillarray-serial-driver"
 version = "0.1.0"
 source = { editable = "../ros2_ws/src/papillarray_serial_driver" }
 dependencies = [
     { name = "numpy" },
-    { name = "pyserial" },
+    { name = "papillarray-pts" },
     { name = "setuptools" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "numpy" },
-    { name = "pyserial" },
+    { name = "papillarray-pts", git = "https://github.com/langxin11/papillarray-pts.git?rev=v0.1.0" },
     { name = "setuptools" },
 ]
 
