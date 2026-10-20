@@ -1118,8 +1118,8 @@ wheels = [
 
 [[package]]
 name = "papillarray-pts"
-version = "0.1.0"
-source = { git = "https://github.com/langxin11/papillarray-pts.git?rev=v0.1.0#f2adc0637a379483feda3bcdc20e369b6bdae610" }
+version = "0.2.0"
+source = { git = "https://github.com/langxin11/papillarray-pts.git?rev=v0.2.0#8cc7d496521c043eee6d202f5d49c9761417c869" }
 dependencies = [
     { name = "numpy" },
     { name = "pyserial" },
@@ -1138,7 +1138,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "numpy" },
-    { name = "papillarray-pts", git = "https://github.com/langxin11/papillarray-pts.git?rev=v0.1.0" },
+    { name = "papillarray-pts", git = "https://github.com/langxin11/papillarray-pts.git?rev=v0.2.0" },
     { name = "setuptools" },
 ]
 
