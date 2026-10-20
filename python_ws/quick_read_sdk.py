@@ -11,12 +11,13 @@
 
 from __future__ import annotations
 
-import os
 import sys
 import time
 from typing import Annotated
 
 import typer
+
+from serial_utils import DEFAULT_WAIT_SEC, wait_for_serial_device
 
 try:
     import PTSDK_CXX_Pybind
@@ -92,6 +93,7 @@ def run_quick_read(
     sensor_index: int,
     bias: bool,
     timeout_sec: float,
+    wait_sec: float,
 ) -> int:
     """连接 PTS 控制器并打印全局三轴力。
 
@@ -103,6 +105,7 @@ def run_quick_read(
         sensor_index: 传感器索引，范围 0..1。
         bias: 是否发送 bias 零点校准请求，执行前须确保传感器无负载。
         timeout_sec: 首帧等待超时时间，单位 s。
+        wait_sec: 等待设备节点出现的最长时间，单位 s。
 
     Returns:
         进程退出码，0 表示成功。
@@ -116,8 +119,10 @@ def run_quick_read(
     if not 0 <= sensor_index < DEFAULT_SENSOR_COUNT:
         typer.secho(f"错误: sensor 必须在 0..{DEFAULT_SENSOR_COUNT - 1} 之间", err=True)
         return 1
-    if not os.path.exists(port):
-        typer.secho(f"错误: 设备 {port} 不存在，请检查连接和权限", err=True)
+    if not wait_for_serial_device(port, wait_sec):
+        typer.secho(
+            f"错误: 设备 {port} 在 {wait_sec:.1f} s 内未出现，请检查连接和权限", err=True
+        )
         return 1
 
     # Workaround for vendor bug: 当前 hub 默认输出 SEN0/SEN1，两者都注册才能避免 pybind 崩溃。
@@ -196,6 +201,9 @@ def main(
     timeout_sec: Annotated[float, typer.Option("--timeout", help="首帧等待超时 (s)")] = (
         DEFAULT_TIMEOUT_SEC
     ),
+    wait_sec: Annotated[
+        float, typer.Option("--wait", help="等待设备节点出现的最长时间 (s)，0 表示不等待")
+    ] = DEFAULT_WAIT_SEC,
 ) -> None:
     """读取传感器全局三轴力，物理量单位为 N，坐标系为 sensor frame。"""
     raise typer.Exit(
@@ -207,6 +215,7 @@ def main(
             sensor_index,
             bias,
             timeout_sec,
+            wait_sec,
         )
     )
 

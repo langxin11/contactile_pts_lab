@@ -3,19 +3,23 @@
 
 from __future__ import annotations
 
-import os
 import sys
+import time
 from typing import Annotated, Protocol
 
 import typer
 
 from pts_protocol import ParsedPacket, PTSProtocolReader
+from serial_utils import DEFAULT_WAIT_SEC, wait_for_serial_device
 
 DEFAULT_PORT = "/dev/ttyACM0"
 DEFAULT_BAUD_RATE = 115200
 DEFAULT_SAMPLES = 100
 DEFAULT_SENSOR_INDEX = 0
 DEFAULT_TIMEOUT_SEC = 1.0
+# 打开瞬间设备端积压尚未涌入内核缓冲，立即 flush 无效（实测 in_waiting=0）；
+# 静默 0.1 s 覆盖 USB 首个读 URB 往返 + 设备缓冲倾泻，之后 flush 一次清干净。
+BACKLOG_DRAIN_GRACE_SEC = 0.1
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -68,6 +72,7 @@ def run_quick_read_serial(
     samples: int,
     sensor_index: int,
     timeout_sec: float,
+    wait_sec: float,
 ) -> int:
     """打开串口并通过自研协议解析器输出全局力。
 
@@ -77,12 +82,15 @@ def run_quick_read_serial(
         samples: 需要输出的样本数。
         sensor_index: 传感器索引。
         timeout_sec: 单次串口读取超时时间，单位 s。
+        wait_sec: 等待设备节点出现的最长时间，单位 s。
 
     Returns:
         进程退出码，0 表示成功。
     """
-    if not os.path.exists(port):
-        typer.secho(f"错误: 设备 {port} 不存在，请检查连接和权限", err=True)
+    if not wait_for_serial_device(port, wait_sec):
+        typer.secho(
+            f"错误: 设备 {port} 在 {wait_sec:.1f} s 内未出现，请检查连接和权限", err=True
+        )
         return 1
     if timeout_sec <= 0:
         typer.secho("错误: timeout 必须大于 0", err=True)
@@ -93,6 +101,11 @@ def run_quick_read_serial(
 
         # with 能覆盖正常退出和异常路径，确保 pyserial 总是释放字符设备。
         with serial.Serial(port=port, baudrate=baud_rate, timeout=timeout_sec) as serial_port:
+            # 先静默再清空：串口关闭期间控制器仍在写入，旧帧滞留在设备端缓冲
+            # （实测可达 40 s 前的数据），打开后约几 ms 才涌入内核；清空之后
+            # 到达的即为实时帧（500 Hz 下新鲜度 ≤ 一个帧周期）。
+            time.sleep(BACKLOG_DRAIN_GRACE_SEC)
+            serial_port.reset_input_buffer()
             typer.echo(f"已连接到 {port}，波特率 {baud_rate}，使用纯 Python 协议解析")
             print_global_forces(PTSProtocolReader(serial_port), samples, sensor_index)
     except PermissionError:
@@ -123,9 +136,14 @@ def main(
     timeout_sec: Annotated[float, typer.Option("--timeout", help="单次串口读取超时 (s)")] = (
         DEFAULT_TIMEOUT_SEC
     ),
+    wait_sec: Annotated[
+        float, typer.Option("--wait", help="等待设备节点出现的最长时间 (s)，0 表示不等待")
+    ] = DEFAULT_WAIT_SEC,
 ) -> None:
     """读取全局三轴力，单位为 N，坐标系为 sensor frame。"""
-    raise typer.Exit(run_quick_read_serial(port, baud_rate, samples, sensor_index, timeout_sec))
+    raise typer.Exit(
+        run_quick_read_serial(port, baud_rate, samples, sensor_index, timeout_sec, wait_sec)
+    )
 
 
 if __name__ == "__main__":

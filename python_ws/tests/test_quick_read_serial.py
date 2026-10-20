@@ -15,6 +15,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from pts_protocol import ParsedPacket
 from quick_read_serial import app, print_global_forces
+from serial_utils import wait_for_serial_device
 
 
 class _PacketReader:
@@ -72,3 +73,13 @@ def test_cli_help_does_not_access_hardware() -> None:
     assert result.exit_code == 0
     assert "--port" in result.stdout
     assert "--sensor" in result.stdout
+
+
+def test_wait_for_serial_device_accepts_existing_path() -> None:
+    """已存在的路径应立即判定成功，不进入等待循环。"""
+    assert wait_for_serial_device("/", wait_sec=0.0) is True
+
+
+def test_wait_for_serial_device_times_out_for_missing_path() -> None:
+    """不存在的设备路径应在等待 0 s 时立即返回失败。"""
+    assert wait_for_serial_device("/dev/pts-nonexistent-for-test", wait_sec=0.0) is False
