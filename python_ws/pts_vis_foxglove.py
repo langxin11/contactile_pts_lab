@@ -167,12 +167,30 @@ class FoxglovePTSLogger:
         return True
 
     def close(self) -> None:
-        """关闭 WebSocket 服务与 MCAP 写入器，确保落盘完整。"""
+        """关闭 WebSocket 服务与 MCAP 写入器，确保落盘完整。
+
+        Args:
+            None。
+
+        Returns:
+            None。
+
+        Raises:
+            None。清理失败降级为警告，避免覆盖主流程的退出码。
+        """
+        # 与 RerunLogger.close 同理：finally 阶段单个资源释放失败只降级为警告，
+        # 不中断其余资源释放，也不覆盖 Ctrl+C 的 130 退出码
         if self._server is not None:
-            self._server.stop()
+            try:
+                self._server.stop()
+            except Exception as exc:
+                typer.secho(f"警告: Foxglove WebSocket 服务关闭失败: {exc}", err=True)
             self._server = None
         if self._mcap is not None:
-            self._mcap.close()
+            try:
+                self._mcap.close()
+            except Exception as exc:
+                typer.secho(f"警告: MCAP 文件关闭失败: {exc}", err=True)
             self._mcap = None
 
 

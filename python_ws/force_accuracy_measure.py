@@ -870,7 +870,9 @@ def run_accuracy_session(
 
 @app.command()
 def measure(
-    config_path: Annotated[pathlib.Path, typer.Option("--config", "-c")] = DEFAULT_CONFIG_PATH,
+    config_path: Annotated[
+        pathlib.Path, typer.Option("--config", "-c", help="实验 YAML 配置路径")
+    ] = DEFAULT_CONFIG_PATH,
     interactive: Annotated[
         bool,
         typer.Option("--interactive", help="忽略 YAML 质量数组，改为每轮在终端输入质量"),

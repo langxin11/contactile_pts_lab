@@ -112,11 +112,17 @@ def run_quick_read_serial(
 
 @app.command()
 def main(
-    port: Annotated[str, typer.Option("--port", "-p")] = DEFAULT_PORT,
-    baud_rate: Annotated[int, typer.Option("--baud-rate", "-b")] = DEFAULT_BAUD_RATE,
-    samples: Annotated[int, typer.Option("--samples", "-n")] = DEFAULT_SAMPLES,
-    sensor_index: Annotated[int, typer.Option("--sensor", "-s")] = DEFAULT_SENSOR_INDEX,
-    timeout_sec: Annotated[float, typer.Option("--timeout")] = DEFAULT_TIMEOUT_SEC,
+    port: Annotated[str, typer.Option("--port", "-p", help="串口设备路径")] = DEFAULT_PORT,
+    baud_rate: Annotated[int, typer.Option("--baud-rate", "-b", help="串口波特率")] = (
+        DEFAULT_BAUD_RATE
+    ),
+    samples: Annotated[int, typer.Option("--samples", "-n", help="输出样本数")] = DEFAULT_SAMPLES,
+    sensor_index: Annotated[int, typer.Option("--sensor", "-s", help="传感器索引")] = (
+        DEFAULT_SENSOR_INDEX
+    ),
+    timeout_sec: Annotated[float, typer.Option("--timeout", help="单次串口读取超时 (s)")] = (
+        DEFAULT_TIMEOUT_SEC
+    ),
 ) -> None:
     """读取全局三轴力，单位为 N，坐标系为 sensor frame。"""
     raise typer.Exit(run_quick_read_serial(port, baud_rate, samples, sensor_index, timeout_sec))

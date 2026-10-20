@@ -9,13 +9,19 @@
     bash scripts/run_python.sh quick_read_sdk --help
 """
 
+from __future__ import annotations
+
 import os
 import sys
 import time
 from typing import Annotated
 
-import PTSDK_CXX_Pybind
 import typer
+
+try:
+    import PTSDK_CXX_Pybind
+except ModuleNotFoundError:  # 官方 SDK 属于可选 extra，缺失时保留 --help 可用并给出安装提示
+    PTSDK_CXX_Pybind = None
 
 DEFAULT_PORT = "/dev/ttyACM0"
 DEFAULT_BAUD_RATE = 115200
@@ -104,6 +110,9 @@ def run_quick_read(
     Raises:
         None。
     """
+    if PTSDK_CXX_Pybind is None:
+        typer.secho("错误: 缺少官方 SDK，请使用 uv run --extra sdk 运行", err=True)
+        return 1
     if not 0 <= sensor_index < DEFAULT_SENSOR_COUNT:
         typer.secho(f"错误: sensor 必须在 0..{DEFAULT_SENSOR_COUNT - 1} 之间", err=True)
         return 1
@@ -170,13 +179,23 @@ def run_quick_read(
 
 
 def main(
-    port: Annotated[str, typer.Option("--port", "-p")] = DEFAULT_PORT,
-    baud_rate: Annotated[int, typer.Option("--baud-rate", "-b")] = DEFAULT_BAUD_RATE,
-    rate_hz: Annotated[int, typer.Option("--rate", "-r")] = DEFAULT_RATE_HZ,
-    samples: Annotated[int, typer.Option("--samples", "-n")] = DEFAULT_SAMPLES,
-    sensor_index: Annotated[int, typer.Option("--sensor", "-s")] = DEFAULT_SENSOR_INDEX,
-    bias: Annotated[bool, typer.Option("--bias")] = False,
-    timeout_sec: Annotated[float, typer.Option("--timeout")] = DEFAULT_TIMEOUT_SEC,
+    port: Annotated[str, typer.Option("--port", "-p", help="串口设备路径")] = DEFAULT_PORT,
+    baud_rate: Annotated[int, typer.Option("--baud-rate", "-b", help="串口波特率")] = (
+        DEFAULT_BAUD_RATE
+    ),
+    rate_hz: Annotated[
+        int, typer.Option("--rate", "-r", help="控制器采样率 (Hz)，支持 100/250/500/1000")
+    ] = DEFAULT_RATE_HZ,
+    samples: Annotated[int, typer.Option("--samples", "-n", help="读取样本数")] = DEFAULT_SAMPLES,
+    sensor_index: Annotated[int, typer.Option("--sensor", "-s", help="传感器索引")] = (
+        DEFAULT_SENSOR_INDEX
+    ),
+    bias: Annotated[
+        bool, typer.Option("--bias", help="连接后执行 bias 零点校准（须确保传感器无负载）")
+    ] = False,
+    timeout_sec: Annotated[float, typer.Option("--timeout", help="首帧等待超时 (s)")] = (
+        DEFAULT_TIMEOUT_SEC
+    ),
 ) -> None:
     """读取传感器全局三轴力，物理量单位为 N，坐标系为 sensor frame。"""
     raise typer.Exit(

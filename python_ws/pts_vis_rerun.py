@@ -285,11 +285,30 @@ class RerunLogger:
             self._rec.log(f"{entity_path}/image", rr.Image(renderer.render(frame)))
 
     def close(self) -> None:
-        """刷新并断开 Rerun 输出流。"""
-        if hasattr(self._rec, "flush"):
-            self._rec.flush()
-        if hasattr(self._rec, "disconnect"):
-            self._rec.disconnect()
+        """刷新并断开 Rerun 输出流。
+
+        Args:
+            None。
+
+        Returns:
+            None。
+
+        Raises:
+            None。清理失败降级为警告，避免覆盖主流程的退出码。
+        """
+        # 查看器窗口可能先于脚本关闭（gRPC 已断），flush/disconnect 会抛
+        # RuntimeError；原厂绑定层异常类型不固定，finally 阶段必须吞掉，
+        # 否则会覆盖 Ctrl+C 已准备好的 130 退出码
+        try:
+            if hasattr(self._rec, "flush"):
+                self._rec.flush()
+        except Exception as exc:
+            typer.secho(f"警告: Rerun flush 失败（查看器连接可能已断开）: {exc}", err=True)
+        try:
+            if hasattr(self._rec, "disconnect"):
+                self._rec.disconnect()
+        except Exception as exc:
+            typer.secho(f"警告: Rerun 断开失败: {exc}", err=True)
 
 
 def run_rerun_visualizer(

@@ -3,18 +3,28 @@
 
 from __future__ import annotations
 
+import math
 import os
+import sys
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Annotated, Literal
 
-import dearpygui.dearpygui as dpg
-import PTSDK_CXX_Pybind
 import typer
 
-BAUD_RATE = 115200
+try:
+    import dearpygui.dearpygui as dpg
+    import PTSDK_CXX_Pybind
+except ModuleNotFoundError as exc:  # GUI 依赖属于可选 extra，缺失时保留 --help 可用
+    dpg = None
+    PTSDK_CXX_Pybind = None
+    _GUI_IMPORT_ERROR: ModuleNotFoundError | None = exc
+else:
+    _GUI_IMPORT_ERROR = None
+
+DEFAULT_BAUD_RATE = 115200
 PARITY_NONE = 0
 BYTE_SIZE_CHAR = "\x08"
 DEFAULT_PORT = "/dev/ttyACM0"
@@ -118,6 +128,7 @@ class PtsSession:
     def __init__(
         self,
         port: str,
+        baud_rate: int,
         rate_hz: int,
         sensor_index: int,
         *,
@@ -127,6 +138,7 @@ class PtsSession:
 
         Args:
             port: 串口设备路径。
+            baud_rate: 串口波特率，单位 baud。
             rate_hz: 控制器采样率，单位 Hz，可选 100/250/500/1000。
             sensor_index: 传感器索引，范围 0..3。
             bias: 是否发送 SDK bias 请求，执行前须确保传感器无负载。
@@ -137,6 +149,7 @@ class PtsSession:
         if not 0 <= sensor_index < PTS_MAX_SENSORS:
             raise ValueError(f"sensor 必须在 0..{PTS_MAX_SENSORS - 1} 之间")
         self.port = port
+        self.baud_rate = baud_rate
         self.rate_hz = rate_hz
         self.sensor_index = sensor_index
         self.bias = bias
@@ -146,7 +159,7 @@ class PtsSession:
 
     def __enter__(self) -> "PtsSession":
         if not os.path.exists(self.port):
-            raise FileNotFoundError(f"串口设备不存在: {self.port}")
+            raise FileNotFoundError(f"串口设备 {self.port} 不存在，请检查连接和权限")
 
         self.listener = PTSDK_CXX_Pybind.PTSDKListener(logFlag=False)
         for sensor in self.sensors:
@@ -154,7 +167,7 @@ class PtsSession:
 
         result = self.listener.connectAndStartListening(
             self.port,
-            BAUD_RATE,
+            self.baud_rate,
             PARITY_NONE,
             BYTE_SIZE_CHAR,
             True,
@@ -260,22 +273,108 @@ class PtsSession:
         return self._last_timestamp_us is None or timestamp_us > self._last_timestamp_us
 
 
+class MockPtsSession:
+    """无硬件模拟会话，接口与 ``PtsSession`` 对齐，供 ``--mock`` 离线演示曲线。"""
+
+    def __init__(self, rate_hz: int, sensor_index: int) -> None:
+        """初始化模拟参数。
+
+        Args:
+            rate_hz: 模拟采样率，单位 Hz，决定时间戳步进与生成节流。
+            sensor_index: 传感器索引，模拟数据不区分索引，仅记录用于诊断。
+        """
+        self.rate_hz = rate_hz
+        self.sensor_index = sensor_index
+        self._sample_index = 0
+
+    def __enter__(self) -> "MockPtsSession":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
+
+    def close(self) -> None:
+        """释放模拟会话。
+
+        Args:
+            None。
+
+        Returns:
+            None。
+
+        Raises:
+            None。
+        """
+        # 无串口/线程资源需要释放，方法仅保持与 PtsSession 相同的生命周期接口
+
+    def next_sample(self, timeout_sec: float = 2.0) -> Sample:
+        """生成下一帧确定性模拟样本。
+
+        Args:
+            timeout_sec: 兼容 PtsSession 接口的占位参数，模拟数据不会超时。
+
+        Returns:
+            单帧模拟数据，物理量使用 sensor frame，量级接近真实传感器典型值。
+        """
+        # 按 wall-clock 节流，让曲线推进速度接近真实采样率，而不是瞬间填满缓冲区
+        time.sleep(1.0 / self.rate_hz)
+        t_s = self._sample_index / self.rate_hz
+        timestamp_us = int(round(t_s * 1_000_000))
+        self._sample_index += 1
+
+        displacements = []
+        forces = []
+        # 各 pillar 频率/相位错开，便于在 3x3 子图中确认 9 条曲线彼此独立
+        for pillar_id in range(PTS_N_PILLARS):
+            phase = pillar_id * 0.7
+            force = (
+                0.8 * math.sin(0.9 * t_s + phase),
+                0.8 * math.sin(1.3 * t_s + 2.0 * phase),
+                1.2 + math.sin(0.7 * t_s + phase),
+            )
+            # 线性刚度近似：位移与力同相位，幅度缩到 ±1 mm 量程内
+            displacement = (force[0] / 4.0, force[1] / 4.0, force[2] / 4.0)
+            forces.append(force)
+            displacements.append(displacement)
+
+        return Sample(
+            timestamp_us=timestamp_us,
+            t_monotonic_ns=time.monotonic_ns(),
+            displacements=tuple(displacements),
+            forces=tuple(forces),
+            global_force=(
+                math.sin(1.1 * t_s),
+                math.sin(1.7 * t_s + 1.0),
+                3.0 + 1.5 * math.sin(0.6 * t_s),
+            ),
+            global_torque=(
+                20.0 * math.sin(0.5 * t_s),
+                20.0 * math.sin(0.9 * t_s + 0.5),
+                30.0 * math.sin(0.4 * t_s + 1.0),
+            ),
+        )
+
+
 
 def acquisition_worker(
     port: str,
+    baud_rate: int,
     rate_hz: int,
     sensor_index: int,
     bias: bool,
     state: LiveState,
+    mock: bool = False,
 ) -> None:
     """后台采集线程。
 
     Args:
         port: 串口设备路径。
+        baud_rate: 串口波特率，单位 baud。
         rate_hz: 控制器采样率，单位 Hz。
         sensor_index: 传感器索引。
         bias: 是否发送 SDK bias 请求，执行前须确保传感器无负载。
         state: GUI 共享状态。
+        mock: 是否使用模拟会话而不访问真实串口。
 
     Returns:
         None。
@@ -284,14 +383,14 @@ def acquisition_worker(
         None。异常会写入 state.error。
     """
     try:
-        with PtsSession(
-            port,
-            rate_hz,
-            sensor_index,
-            bias=bias,
-        ) as session:
+        session: PtsSession | MockPtsSession
+        if mock:
+            session = MockPtsSession(rate_hz, sensor_index)
+        else:
+            session = PtsSession(port, baud_rate, rate_hz, sensor_index, bias=bias)
+        with session as active_session:
             while not state.stop.is_set():
-                state.append(session.next_sample())
+                state.append(active_session.next_sample())
     except Exception as exc:
         state.error = exc
         state.stop.set()
@@ -492,6 +591,7 @@ def update_plot_layout(view: ViewMode, last_height: int) -> int:
 
 def run_live(
     port: str,
+    baud_rate: int,
     rate_hz: int,
     sensor_index: int,
     view: ViewMode,
@@ -500,11 +600,13 @@ def run_live(
     height: int,
     font_size: int,
     bias: bool,
+    mock: bool = False,
 ) -> None:
     """启动 DearPyGui 实时曲线查看器。
 
     Args:
         port: 串口设备路径。
+        baud_rate: 串口波特率，单位 baud。
         rate_hz: 控制器采样率，单位 Hz。
         sensor_index: 传感器索引。
         view: 显示内容。
@@ -513,6 +615,7 @@ def run_live(
         height: 窗口高度，单位 px。
         font_size: 字体大小，单位 px。
         bias: 是否发送 SDK bias 请求，执行前须确保传感器无负载。
+        mock: 是否使用模拟数据而不访问真实串口。
 
     Returns:
         None。
@@ -524,7 +627,7 @@ def run_live(
     state = LiveState(max_samples=max_samples)
     worker = threading.Thread(
         target=acquisition_worker,
-        args=(port, rate_hz, sensor_index, bias, state),
+        args=(port, baud_rate, rate_hz, sensor_index, bias, state, mock),
         daemon=True,
     )
     worker.start()
@@ -574,23 +677,60 @@ def run_live(
         dpg.destroy_context()
 
 
+def has_display() -> bool:
+    """判断当前会话是否具备图形显示环境。
+
+    DearPyGui 依赖 GLFW/X11 建窗口，SSH 纯终端下会在 C 层断言崩溃且无法被
+    Python 捕获，必须在启动 GUI 前提前拦截。
+
+    Args:
+        None。
+
+    Returns:
+        Linux 下 ``DISPLAY`` 或 ``WAYLAND_DISPLAY`` 任一存在即视为可显示；
+        非 Linux 平台恒为 True。
+
+    Raises:
+        None。
+    """
+    if sys.platform != "linux":
+        return True
+    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+
 def main(
-    port: Annotated[str, typer.Option("--port", "-p")] = DEFAULT_PORT,
-    rate_hz: Annotated[int, typer.Option("--rate", "-r")] = DEFAULT_RATE_HZ,
-    sensor_index: Annotated[int, typer.Option("--sensor", "-s", min=0, max=3)] = DEFAULT_SENSOR,
-    view: Annotated[ViewMode, typer.Option("--view", "-v")] = DEFAULT_VIEW,
-    window_sec: Annotated[float, typer.Option("--window", "-w", min=1.0)] = DEFAULT_WINDOW_SEC,
-    bias: Annotated[bool, typer.Option("--bias/--no-bias")] = False,
+    port: Annotated[str, typer.Option("--port", "-p", help="串口设备路径")] = DEFAULT_PORT,
+    baud_rate: Annotated[int, typer.Option("--baud-rate", "-b", help="串口波特率")] = (
+        DEFAULT_BAUD_RATE
+    ),
+    rate_hz: Annotated[
+        int, typer.Option("--rate", "-r", help="控制器采样率 (Hz)，支持 100/250/500/1000")
+    ] = DEFAULT_RATE_HZ,
+    sensor_index: Annotated[
+        int, typer.Option("--sensor", "-s", min=0, max=3, help="传感器索引")
+    ] = DEFAULT_SENSOR,
+    view: Annotated[
+        ViewMode, typer.Option("--view", "-v", help="显示内容：displacement / force / global")
+    ] = DEFAULT_VIEW,
+    window_sec: Annotated[
+        float, typer.Option("--window", "-w", min=1.0, help="曲线显示时间窗口 (s)")
+    ] = DEFAULT_WINDOW_SEC,
+    bias: Annotated[
+        bool, typer.Option("--bias/--no-bias", help="连接后执行 bias 零点校准（须确保传感器无负载）")
+    ] = False,
+    mock: Annotated[bool, typer.Option("--mock", help="使用模拟数据，不依赖硬件")] = False,
 ) -> None:
     """启动 PTS Python SDK + DearPyGui 实时曲线查看器。
 
     Args:
         port: 串口设备路径。
+        baud_rate: 串口波特率，单位 baud。
         rate_hz: 控制器采样率，单位 Hz。
         sensor_index: 传感器索引。
         view: 显示内容，`displacement`、`force` 或 `global`。
         window_sec: 曲线显示窗口，单位 s。
         bias: 是否发送 SDK bias 请求，执行前须确保传感器无负载。
+        mock: 是否使用模拟数据而不访问真实串口。
 
     Returns:
         None。
@@ -598,19 +738,39 @@ def main(
     Raises:
         typer.BadParameter: 参数不合法时抛出。
     """
+    if _GUI_IMPORT_ERROR is not None:
+        typer.secho(
+            f"错误: 缺少 GUI 依赖 ({_GUI_IMPORT_ERROR})，请使用 uv run --extra gui 运行",
+            err=True,
+        )
+        raise typer.Exit(1)
+    if not has_display():
+        typer.secho(
+            "错误: 当前会话未设置 DISPLAY/WAYLAND_DISPLAY，GUI 无法启动；"
+            "请在桌面会话运行，或改用 pts_vis_rerun.py --mock 等无窗口可视化",
+            err=True,
+        )
+        raise typer.Exit(1)
     if rate_hz not in {100, 250, 500, 1000}:
         raise typer.BadParameter("--rate 仅支持 100/250/500/1000")
-    run_live(
-        port=port,
-        rate_hz=rate_hz,
-        sensor_index=sensor_index,
-        view=view,
-        window_sec=window_sec,
-        width=DEFAULT_WIDTH,
-        height=DEFAULT_HEIGHT,
-        font_size=DEFAULT_FONT_SIZE,
-        bias=bias,
-    )
+    try:
+        run_live(
+            port=port,
+            baud_rate=baud_rate,
+            rate_hz=rate_hz,
+            sensor_index=sensor_index,
+            view=view,
+            window_sec=window_sec,
+            width=DEFAULT_WIDTH,
+            height=DEFAULT_HEIGHT,
+            font_size=DEFAULT_FONT_SIZE,
+            bias=bias,
+            mock=mock,
+        )
+    except (OSError, RuntimeError, ValueError, TimeoutError) as exc:
+        # 采集线程或 SDK 的异常统一转成可读错误，避免 GUI 退出后打印裸 traceback
+        typer.secho(f"错误: {exc}", err=True)
+        raise typer.Exit(1) from exc
 
 
 if __name__ == "__main__":

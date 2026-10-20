@@ -13,6 +13,7 @@ from typer.testing import CliRunner
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from pts_protocol import ParsedPacket
+from pts_vis import MockPtsSession
 from pts_vis_core import (
     COLOR_NO_CONTACT,
     PTS_N_PILLARS,
@@ -227,3 +228,43 @@ def test_cli_mock_runs_offline(tmp_path: pathlib.Path) -> None:
     assert res_fg.exit_code == 0, res_fg.output
     assert mcap_out.is_file()
     assert layout_out.is_file()
+
+
+def test_mock_pts_session_generates_independent_pillars() -> None:
+    """MockPtsSession 应产出时间戳递增、9 柱齐全且幅度在显示范围内的模拟帧。"""
+    session = MockPtsSession(rate_hz=100, sensor_index=0)
+    first = session.next_sample()
+    second = session.next_sample()
+
+    assert len(first.forces) == PTS_N_PILLARS
+    assert len(first.displacements) == PTS_N_PILLARS
+    assert second.timestamp_us > first.timestamp_us == 0
+    assert second.forces != first.forces
+    # 幅度需落在曲线视图默认量程内（力 ±10 N，位移 ±1 mm），否则 mock 演示会被截断
+    assert all(abs(component) < 10.0 for force in first.forces for component in force)
+    assert all(abs(component) < 1.0 for disp in first.displacements for component in disp)
+
+
+class _SeveredRecording(_FakeRecording):
+    """模拟查看器先于脚本关闭：flush 抛 RuntimeError，disconnect 仍应被调用。"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.disconnect_called = False
+
+    def flush(self) -> None:
+        raise RuntimeError("gRPC connection severed")
+
+    def disconnect(self) -> None:
+        self.disconnect_called = True
+
+
+def test_rerun_logger_close_tolerates_severed_connection() -> None:
+    """查看器连接断开时 close() 不应抛出，也不能跳过后续 disconnect 清理。"""
+    fake = _SeveredRecording()
+    logger = RerunLogger(recording=fake)
+    logger.log_tactile_frame(mock_frame(0.0), entity_path="tactile/sen0")
+
+    logger.close()
+
+    assert fake.disconnect_called
