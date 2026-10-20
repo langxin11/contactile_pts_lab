@@ -24,6 +24,8 @@ except ModuleNotFoundError as exc:  # GUI 依赖属于可选 extra，缺失时�
 else:
     _GUI_IMPORT_ERROR = None
 
+from serial_utils import DEFAULT_WAIT_SEC, wait_for_serial_device
+
 DEFAULT_BAUD_RATE = 115200
 PARITY_NONE = 0
 BYTE_SIZE_CHAR = "\x08"
@@ -158,8 +160,11 @@ class PtsSession:
         self._last_timestamp_us: int | None = None
 
     def __enter__(self) -> "PtsSession":
-        if not os.path.exists(self.port):
-            raise FileNotFoundError(f"串口设备 {self.port} 不存在，请检查连接和权限")
+        # 插入 USB 后设备节点要 1~2 s 才出现，有界等待可避免 GUI 刚启动就因枚举未完成退出。
+        if not wait_for_serial_device(self.port, DEFAULT_WAIT_SEC):
+            raise FileNotFoundError(
+                f"串口设备 {self.port} 在 {DEFAULT_WAIT_SEC:.1f} s 内未出现，请检查连接和权限"
+            )
 
         self.listener = PTSDK_CXX_Pybind.PTSDKListener(logFlag=False)
         for sensor in self.sensors:
@@ -353,7 +358,6 @@ class MockPtsSession:
                 30.0 * math.sin(0.4 * t_s + 1.0),
             ),
         )
-
 
 
 def acquisition_worker(
@@ -716,7 +720,8 @@ def main(
         float, typer.Option("--window", "-w", min=1.0, help="曲线显示时间窗口 (s)")
     ] = DEFAULT_WINDOW_SEC,
     bias: Annotated[
-        bool, typer.Option("--bias/--no-bias", help="连接后执行 bias 零点校准（须确保传感器无负载）")
+        bool,
+        typer.Option("--bias/--no-bias", help="连接后执行 bias 零点校准（须确保传感器无负载）"),
     ] = False,
     mock: Annotated[bool, typer.Option("--mock", help="使用模拟数据，不依赖硬件")] = False,
 ) -> None:

@@ -28,6 +28,7 @@ import typer
 import yaml
 
 from pts_protocol_compare import SerialTeeRelay, _ByteSequenceFilter, parse_capture_packets
+from serial_utils import DEFAULT_WAIT_SEC, wait_for_serial_device
 
 DEFAULT_SENSOR_COUNT = 2
 STANDARD_GRAVITY_M_PER_SEC2 = 9.80665
@@ -641,8 +642,11 @@ def run_accuracy_session(
     Returns:
         进程退出码，0 表示正常结束。
     """
-    if not os.path.exists(port):
-        typer.secho(f"错误: 设备 {port} 不存在，请检查连接和权限", err=True)
+    if not wait_for_serial_device(port, DEFAULT_WAIT_SEC):
+        typer.secho(
+            f"错误: 设备 {port} 在 {DEFAULT_WAIT_SEC:.1f} s 内未出现，请检查连接和权限",
+            err=True,
+        )
         return 1
     if not 0 <= sensor_index < DEFAULT_SENSOR_COUNT:
         typer.secho(f"错误: sensor 必须在 0..{DEFAULT_SENSOR_COUNT - 1} 之间", err=True)

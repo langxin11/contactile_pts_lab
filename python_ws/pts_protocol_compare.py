@@ -28,7 +28,10 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - 仅用于离线导入辅助函数
     typer = None
 
+from papillarray_pts.serial_worker import BACKLOG_DRAIN_GRACE_SEC
+
 from pts_protocol import ParsedPacket, PTSProtocolReader
+from serial_utils import DEFAULT_WAIT_SEC, wait_for_serial_device
 
 DEFAULT_PORT = "/dev/ttyACM0"
 DEFAULT_BAUD_RATE = 115200
@@ -180,6 +183,10 @@ class SerialTeeRelay:
             timeout=DEFAULT_SERIAL_TIMEOUT_SEC,
             write_timeout=DEFAULT_SERIAL_TIMEOUT_SEC,
         )
+        # 旧会话帧滞留在设备端发送缓冲（实测可达 40 s 前），打开后几 ms 才涌入内核，
+        # 静默后清空再启动中继，保证 PTY 侧 SDK 与抓包都从本次会话的数据开始。
+        time.sleep(BACKLOG_DRAIN_GRACE_SEC)
+        self._serial.reset_input_buffer()
         self._master_fd, self._slave_fd = pty.openpty()
         tty.setraw(self._master_fd)
         tty.setraw(self._slave_fd)
@@ -475,8 +482,10 @@ def run_protocol_compare(
         raise ValueError("duration 必须 > 0")
     if abs_tol < 0:
         raise ValueError("abs_tol 必须 >= 0")
-    if not os.path.exists(port):
-        raise FileNotFoundError(f"设备 {port} 不存在，请检查连接和权限")
+    if not wait_for_serial_device(port, DEFAULT_WAIT_SEC):
+        raise FileNotFoundError(
+            f"设备 {port} 在 {DEFAULT_WAIT_SEC:.1f} s 内未出现，请检查连接和权限"
+        )
 
     import PTSDK_CXX_Pybind
 

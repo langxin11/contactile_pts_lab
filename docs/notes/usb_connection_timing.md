@@ -40,8 +40,11 @@
 - 纯协议链路重开串口时，`quick_read_serial.py` 已在打开后**先静默 0.1 s 再
   `reset_input_buffer()`**：旧帧滞留在设备端缓冲（实测可达 40 s 前的数据），打开后
   约几 ms 才涌入内核，立即 flush 扑空、静默后 flush 才能清干净（实测二次打开首帧
-  时间戳与上次尾帧间隔恢复为真实墙钟间隔）。其他直接使用 `serial.Serial` 的脚本
-  （如 `pts_protocol_compare.py`）如依赖时间戳，需自行做同样处理。
+  时间戳与上次尾帧间隔恢复为真实墙钟间隔）。
+- 设备节点等待已统一由共享包 `papillarray-pts` v0.2.0 的 `wait_for_serial_device()`
+  提供（经 `serial_utils` 转发），`quick_read_*`、`pts_vis`、`pts_protocol_compare`、
+  `force_accuracy_measure` 全部入口均已接入；`pts_protocol_compare` 的串口中继同样
+  在启动前静默清空积压（常量来自共享包 `BACKLOG_DRAIN_GRACE_SEC`）。
 
 ## 5. udev 修复后的复测（同日）
 
