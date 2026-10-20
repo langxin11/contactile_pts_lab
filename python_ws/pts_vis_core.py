@@ -2,17 +2,18 @@
 """PTS 2D 可视化的共享几何核心。
 
 Rerun 矢量图层与 Foxglove 触觉图像共用同一套“物理量 → 视觉量”映射，
-避免两个后端各自实现导致半径、颜色、接触判定不一致。本模块不依赖任何渲染库。
+避免两个后端各自实现导致半径、颜色、接触判定不一致。帧数据模型
+（``PTSFrame`` / ``frames_from_packet``）由共享串口库 papillarray-pts >= 0.3.0
+提供，本模块只保留可视化几何，不依赖任何渲染库。
 """
 
 from __future__ import annotations
 
-import warnings
 from dataclasses import dataclass
 
 import numpy as np
+from papillarray_pts.frames import PTSFrame
 
-PTS_N_PILLARS = 9
 # 以下几何参数来自 PTS_2.1_SPEC_JAN25 Table 3.1
 PILLAR_SPACING_MM = 7.0  # 方形网格中心距
 PILLAR_DIAMETER_MM = 6.0
@@ -78,38 +79,6 @@ class PTSVisualizationConfig:
             raise ValueError("force_full_scale_n 必须为正")
         if self.contact_threshold_n < 0:
             raise ValueError("contact_threshold_n 不能为负")
-
-
-@dataclass(frozen=True)
-class PTSFrame:
-    """单个传感器单帧数据（与渲染无关的输入）。
-
-    Attributes:
-        timestamp_us: 控制器时间戳，单位 us。
-        displacements: pillar 位移，单位 mm，sensor frame，shape=(9, 3)。
-        forces: pillar 力，单位 N，sensor frame，shape=(9, 3)。
-        global_force: 全局力，单位 N，sensor frame，shape=(3,)。
-        global_torque: 全局力矩，单位 N·mm，sensor frame，shape=(3,)。
-    """
-
-    timestamp_us: int
-    displacements: np.ndarray
-    forces: np.ndarray
-    global_force: np.ndarray
-    global_torque: np.ndarray
-
-    def __post_init__(self) -> None:
-        """统一 dtype 并校验 shape，尽早暴露协议解析错位。"""
-        for name, shape in (
-            ("displacements", (PTS_N_PILLARS, 3)),
-            ("forces", (PTS_N_PILLARS, 3)),
-            ("global_force", (3,)),
-            ("global_torque", (3,)),
-        ):
-            value = np.asarray(getattr(self, name), dtype=np.float64)
-            if value.shape != shape:
-                raise ValueError(f"{name} shape 应为 {shape}，实际为 {value.shape}")
-            object.__setattr__(self, name, value)
 
 
 @dataclass(frozen=True)
@@ -238,41 +207,6 @@ def crosshair_segments(tip_centers: np.ndarray, half_mm: float) -> np.ndarray:
         segments.append(((x - half_mm, y), (x + half_mm, y)))
         segments.append(((x, y - half_mm), (x, y + half_mm)))
     return np.asarray(segments, dtype=np.float64).reshape(-1, 2, 2)
-
-
-def frames_from_packet(packet: object) -> list[PTSFrame | None]:
-    """把 papillarray_pts.ParsedPacket 拆成每个传感器一帧。
-
-    Args:
-        packet: ``ParsedPacket``，用鸭子类型以免核心模块依赖协议包。
-
-    Returns:
-        每个传感器一个条目，与传感器索引位置对齐；pillar 数不为 9 的
-        传感器对应位置为 ``None`` 占位。
-
-    Raises:
-        RuntimeWarning: 某个传感器 pillar 数异常时通过 ``warnings`` 告警。
-    """
-    frames: list[PTSFrame | None] = []
-    for disp, force, gforce, gtorque in zip(
-        packet.pillar_displacements,
-        packet.pillar_forces,
-        packet.global_forces,
-        packet.global_torques,
-    ):
-        if np.shape(disp)[0] != PTS_N_PILLARS:
-            # 协议错位时占位 None 而不是删除元素：调用方按位置 zip 配对
-            # entity_path/topic，删除元素会把后续传感器数据错配到前一个通道
-            warnings.warn(
-                f"跳过 pillar 数异常的传感器（期望 {PTS_N_PILLARS}，"
-                f"实际 {np.shape(disp)[0]}），该通道本轮不发布",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-            frames.append(None)
-            continue
-        frames.append(PTSFrame(packet.timestamp_us, disp, force, gforce, gtorque))
-    return frames
 
 
 def mock_frame(t_s: float, phase: float = 0.0, flip_x: bool = True) -> PTSFrame:

@@ -14,22 +14,17 @@ from pathlib import Path
 from typing import Annotated
 
 import foxglove
-import serial
 import typer
 from foxglove.channels import CompressedImageChannel
 from foxglove.messages import CompressedImage, Timestamp
-from papillarray_pts.serial_worker import BACKLOG_DRAIN_GRACE_SEC
+from papillarray_pts.frames import PTSFrame, iter_sensor_frames
 
-from pts_protocol import PTSProtocolReader
 from pts_vis_core import (
     DEFAULT_CONTACT_THRESHOLD_N,
-    PTSFrame,
     PTSVisualizationConfig,
-    frames_from_packet,
     mock_frame,
 )
 from pts_vis_image import DEFAULT_IMAGE_SIZE_PX, PTSImageRenderer, encode_jpeg
-from serial_utils import DEFAULT_WAIT_SEC, wait_for_serial_device
 
 DEFAULT_PORT = "/dev/ttyACM0"
 DEFAULT_BAUD_RATE = 115200
@@ -323,13 +318,6 @@ def run_foxglove_visualizer(
         )
         typer.echo(f"已导出 Foxglove 布局文件: {export_layout}")
 
-    if not mock and not wait_for_serial_device(port, DEFAULT_WAIT_SEC):
-        typer.secho(
-            f"错误: 串口设备 {port} 在 {DEFAULT_WAIT_SEC:.1f} s 内未出现，请检查连接和权限",
-            err=True,
-        )
-        return 1
-
     logger = FoxglovePTSLogger(
         config=config,
         image_hz=image_hz,
@@ -356,23 +344,20 @@ def run_foxglove_visualizer(
             )
             return 0
 
-        with serial.Serial(port=port, baudrate=baud_rate, timeout=timeout_sec) as ser:
-            # 旧会话帧滞留在设备端发送缓冲（实测可陈旧达 40 s），打开后几 ms 才涌入内核；
-            # 静默后清空，保证录制从本次会话的数据开始（同 pts_protocol_compare 的中继清理）
-            time.sleep(BACKLOG_DRAIN_GRACE_SEC)
-            ser.reset_input_buffer()
-            reader = PTSProtocolReader(ser)
-            typer.echo(f"已连接 {port} ({baud_rate} baud)，以 {image_hz} Hz 渲染触觉图像...")
-            count = 0
-            while samples <= 0 or count < samples:
-                packet = reader.read_packet()
-                frames = frames_from_packet(packet)
-                for frame, name in zip(frames, sensor_names):
-                    if frame is None:
-                        # 异常传感器占位帧：跳过发布，但保持后续传感器与通道的配对
-                        continue
-                    logger.log_tactile_frame(frame, sensor_name=name)
-                count += 1
+        # 设备等待、积压清理与串口释放统一由共享库的采集生成器管理；
+        # 设备未出现时其 FileNotFoundError 落入下方 OSError 分支统一提示
+        count = 0
+        for frames in iter_sensor_frames(port, baud_rate, timeout_sec):
+            if count == 0:
+                typer.echo(f"已连接 {port} ({baud_rate} baud)，以 {image_hz} Hz 渲染触觉图像...")
+            for frame, name in zip(frames, sensor_names):
+                if frame is None:
+                    # 异常传感器占位帧：跳过发布，但保持后续传感器与通道的配对
+                    continue
+                logger.log_tactile_frame(frame, sensor_name=name)
+            count += 1
+            if 0 < samples <= count:
+                break
     except PermissionError:
         # 串口权限不足时只能由用户调整 dialout 组，脚本禁止调用 sudo
         typer.secho(f"错误: 没有权限访问 {port}，请将当前用户加入 dialout 组", err=True)

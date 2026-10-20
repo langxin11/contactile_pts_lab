@@ -12,17 +12,16 @@ from typer.testing import CliRunner
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
+from papillarray_pts.frames import PTS_N_PILLARS, PTSFrame, frames_from_packet
+
 from pts_protocol import ParsedPacket
 from pts_vis import MockPtsSession
 from pts_vis_core import (
     COLOR_NO_CONTACT,
-    PTS_N_PILLARS,
-    PTSFrame,
     PTSVisualizationConfig,
     active_area_outline,
     compute_pillar_geometry,
     crosshair_segments,
-    frames_from_packet,
     mock_frame,
     pillar_base_centers,
 )

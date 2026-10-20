@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
+from papillarray_pts.frames import PTSFrame
 
 from pts_vis_core import (
     COLOR_AXIS_X,
@@ -17,7 +18,6 @@ from pts_vis_core import (
     COLOR_CROSSHAIR,
     COLOR_LABEL,
     COLOR_OUTLINE,
-    PTSFrame,
     PTSVisualizationConfig,
     active_area_outline,
     compute_pillar_geometry,

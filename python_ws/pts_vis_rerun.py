@@ -10,11 +10,9 @@ from typing import Annotated
 import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
-import serial
 import typer
-from papillarray_pts.serial_worker import BACKLOG_DRAIN_GRACE_SEC
+from papillarray_pts.frames import PTS_N_PILLARS, PTSFrame, iter_sensor_frames
 
-from pts_protocol import PTSProtocolReader
 from pts_vis_core import (
     COLOR_AXIS_X,
     COLOR_AXIS_Y,
@@ -23,18 +21,14 @@ from pts_vis_core import (
     COLOR_LABEL,
     COLOR_OUTLINE,
     DEFAULT_CONTACT_THRESHOLD_N,
-    PTS_N_PILLARS,
-    PTSFrame,
     PTSVisualizationConfig,
     active_area_outline,
     compute_pillar_geometry,
     crosshair_segments,
-    frames_from_packet,
     mock_frame,
     pillar_base_centers,
 )
 from pts_vis_image import PTSImageRenderer
-from serial_utils import DEFAULT_WAIT_SEC, wait_for_serial_device
 
 DEFAULT_PORT = "/dev/ttyACM0"
 DEFAULT_BAUD_RATE = 115200
@@ -353,12 +347,6 @@ def run_rerun_visualizer(
         进程退出码，0 表示正常结束。
     """
     sensor_paths = DEFAULT_DUAL_PATHS if dual else (DEFAULT_ENTITY_PATH,)
-    if not mock and not wait_for_serial_device(port, DEFAULT_WAIT_SEC):
-        typer.secho(
-            f"错误: 串口设备 {port} 在 {DEFAULT_WAIT_SEC:.1f} s 内未出现，请检查连接和权限",
-            err=True,
-        )
-        return 1
 
     logger = RerunLogger(
         config=config,
@@ -381,23 +369,20 @@ def run_rerun_visualizer(
             typer.echo(f"Rerun mock 可视化完成，共记录 {count} 帧")
             return 0
 
-        with serial.Serial(port=port, baudrate=baud_rate, timeout=timeout_sec) as ser:
-            # 旧会话帧滞留在设备端发送缓冲（实测可陈旧达 40 s），打开后几 ms 才涌入内核；
-            # 静默后清空，保证录制从本次会话的数据开始（同 pts_protocol_compare 的中继清理）
-            time.sleep(BACKLOG_DRAIN_GRACE_SEC)
-            ser.reset_input_buffer()
-            reader = PTSProtocolReader(ser)
-            typer.echo(f"已连接 {port} ({baud_rate} baud)，开始推送到 Rerun...")
-            count = 0
-            while samples <= 0 or count < samples:
-                packet = reader.read_packet()
-                frames = frames_from_packet(packet)
-                for frame, path in zip(frames, sensor_paths):
-                    if frame is None:
-                        # 异常传感器占位帧：跳过发布，但保持后续传感器与路径的配对
-                        continue
-                    logger.log_tactile_frame(frame, entity_path=path)
-                count += 1
+        # 设备等待、积压清理与串口释放统一由共享库的采集生成器管理；
+        # 设备未出现时其 FileNotFoundError 落入下方 OSError 分支统一提示
+        count = 0
+        for frames in iter_sensor_frames(port, baud_rate, timeout_sec):
+            if count == 0:
+                typer.echo(f"已连接 {port} ({baud_rate} baud)，开始推送到 Rerun...")
+            for frame, path in zip(frames, sensor_paths):
+                if frame is None:
+                    # 异常传感器占位帧：跳过发布，但保持后续传感器与路径的配对
+                    continue
+                logger.log_tactile_frame(frame, entity_path=path)
+            count += 1
+            if 0 < samples <= count:
+                break
     except PermissionError:
         # 串口权限不足时只能由用户调整 dialout 组，脚本禁止调用 sudo
         typer.secho(f"错误: 没有权限访问 {port}，请将当前用户加入 dialout 组", err=True)
