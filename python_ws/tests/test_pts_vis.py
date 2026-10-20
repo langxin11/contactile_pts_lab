@@ -120,6 +120,28 @@ def test_outline_and_crosshair_geometry_shapes() -> None:
     assert segs.shape == (2 * PTS_N_PILLARS, 2, 2)
 
 
+def test_flip_x_coordinate_conventions() -> None:
+    """默认 flip_x=True 应满足右手系 (+x 朝左、+y 朝上、+z 向里) 像素与点阵映射。"""
+    s = 7.0
+    base_rh = pillar_base_centers(spacing_mm=s, flip_x=True)
+    # P0 为左上角：+x 朝左故 x=+s；+y 朝上故 y=+s
+    np.testing.assert_allclose(base_rh[0], (s, s))
+    np.testing.assert_allclose(base_rh[2], (-s, s))
+    np.testing.assert_allclose(base_rh[8], (-s, -s))
+
+    base_lh = pillar_base_centers(spacing_mm=s, flip_x=False)
+    np.testing.assert_allclose(base_lh[0], (-s, s))
+    np.testing.assert_allclose(base_lh[2], (s, s))
+
+    renderer_rh = PTSImageRenderer(PTSVisualizationConfig(flip_x=True))
+    px_p0 = renderer_rh.to_px(base_rh[0])
+    px_p2 = renderer_rh.to_px(base_rh[2])
+    px_p6 = renderer_rh.to_px(base_rh[6])
+    # 像素坐标中，P0 应严格在 P2 左侧 (X 像素值更小)，P0 应在 P6 上方 (Y 像素值更小)
+    assert px_p0[0] < px_p2[0]
+    assert px_p0[1] < px_p6[1]
+
+
 def test_frames_from_packet_converts_dual_sensors() -> None:
     """协议包解析出的双传感器数据应正确转为两个 PTSFrame。"""
     pkt = ParsedPacket(

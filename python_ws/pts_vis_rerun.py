@@ -48,16 +48,22 @@ RERUN_Y_FLIP = np.array([1.0, -1.0], dtype=np.float64)
 app = typer.Typer(no_args_is_help=True)
 
 
-def _to_rerun_xy(xy_mm: np.ndarray) -> np.ndarray:
-    """将 sensor frame 平面坐标 (+y 向上) 转换为 Rerun 2D 视图坐标 (+y 向下)。
+def _to_rerun_xy(xy_mm: np.ndarray, flip_x: bool = True) -> np.ndarray:
+    """将 sensor frame 平面坐标转换为 Rerun 2D 视图坐标。
+
+    Rerun 2D 视图默认 +x 朝右、+y 朝下。
+    当 flip_x=True 时，取 [-1.0, -1.0]，使屏幕显示为 +x 朝左、+y 朝上；
+    结合法向压缩 +z 垂直屏幕向里构成空间右手直角坐标系。
 
     Args:
         xy_mm: 传感器平面坐标，单位 mm，sensor frame，shape=(..., 2)。
+        flip_x: 是否水平调转 x 轴。
 
     Returns:
         Rerun 2D 坐标，单位 mm，shape 同输入。
     """
-    return np.asarray(xy_mm, dtype=np.float64) * RERUN_Y_FLIP
+    scale = np.array([-1.0 if flip_x else 1.0, -1.0], dtype=np.float64)
+    return np.asarray(xy_mm, dtype=np.float64) * scale
 
 
 class RerunLogger:
@@ -153,14 +159,16 @@ class RerunLogger:
         if pts_root in self._static_logged:
             return
         cfg = self.config
-        outline = _to_rerun_xy(active_area_outline(cfg))
+        outline = _to_rerun_xy(active_area_outline(cfg), flip_x=cfg.flip_x)
         self._rec.log(
             f"{pts_root}/active_area_outline",
             rr.LineStrips2D([outline], colors=[COLOR_OUTLINE], radii=0.08, draw_order=-2.0),
             static=True,
         )
 
-        base_xy = _to_rerun_xy(pillar_base_centers(cfg.pillar_spacing_mm))
+        base_xy = _to_rerun_xy(
+            pillar_base_centers(cfg.pillar_spacing_mm, flip_x=cfg.flip_x), flip_x=cfg.flip_x
+        )
         self._rec.log(
             f"{pts_root}/base_circles",
             rr.Points2D(
@@ -175,8 +183,9 @@ class RerunLogger:
         if cfg.show_labels:
             # 标签放在基底圆上沿略偏外处，防止被顶圆十字准线遮挡
             label_xy = _to_rerun_xy(
-                pillar_base_centers(cfg.pillar_spacing_mm)
-                + np.array([0.0, cfg.base_radius_mm + 0.6])
+                pillar_base_centers(cfg.pillar_spacing_mm, flip_x=cfg.flip_x)
+                + np.array([0.0, cfg.base_radius_mm + 0.6]),
+                flip_x=cfg.flip_x,
             )
             self._rec.log(
                 f"{pts_root}/labels",
@@ -192,10 +201,12 @@ class RerunLogger:
             )
 
         if cfg.show_frame:
-            corner = active_area_outline(cfg)[0] + np.array([-1.2, -1.2])
-            origin = _to_rerun_xy(np.vstack([corner, corner]))
+            half = cfg.pillar_spacing_mm + cfg.base_radius_mm
+            # 原点放在屏幕右下角（-half），+X 箭头指向左侧，+Y 箭头指向上方
+            corner = np.array([-half, -half])
+            origin = _to_rerun_xy(np.vstack([corner, corner]), flip_x=cfg.flip_x)
             axis_len = cfg.pillar_spacing_mm * 0.45
-            vectors = _to_rerun_xy(np.array([[axis_len, 0.0], [0.0, axis_len]]))
+            vectors = _to_rerun_xy(np.array([[axis_len, 0.0], [0.0, axis_len]]), flip_x=cfg.flip_x)
             self._rec.log(
                 f"{pts_root}/frame_axes",
                 rr.Arrows2D(
@@ -226,7 +237,7 @@ class RerunLogger:
         self._rec.log(
             f"{pts_root}/tip_circles",
             rr.Points2D(
-                _to_rerun_xy(geom.tip_centers),
+                _to_rerun_xy(geom.tip_centers, flip_x=self.config.flip_x),
                 radii=geom.tip_radii,
                 colors=geom.colors,
                 draw_order=0.0,
@@ -235,7 +246,8 @@ class RerunLogger:
 
         if self.config.show_crosshair:
             segments = _to_rerun_xy(
-                crosshair_segments(geom.tip_centers, self.config.crosshair_half_mm)
+                crosshair_segments(geom.tip_centers, self.config.crosshair_half_mm),
+                flip_x=self.config.flip_x,
             )
             self._rec.log(
                 f"{pts_root}/crosshairs",
@@ -415,9 +427,15 @@ def main(
     contact_threshold: Annotated[
         float, typer.Option("--contact-threshold", help="接触力阈值 (N)")
     ] = 0.2,
+    no_flip_x: Annotated[
+        bool, typer.Option("--no-flip-x", help="不调转 X 轴（保持常规 +X 向右，此时为左手系）")
+    ] = False,
 ) -> None:
     """启动 Contactile PTS 的 Rerun 2D 可视化。"""
-    cfg = PTSVisualizationConfig(contact_threshold_n=contact_threshold)
+    cfg = PTSVisualizationConfig(
+        contact_threshold_n=contact_threshold,
+        flip_x=not no_flip_x,
+    )
     code = run_rerun_visualizer(
         port=port,
         baud_rate=baud_rate,

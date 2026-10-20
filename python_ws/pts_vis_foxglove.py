@@ -386,9 +386,15 @@ def main(
     contact_threshold: Annotated[
         float, typer.Option("--contact-threshold", help="接触力阈值 (N)")
     ] = 0.2,
+    no_flip_x: Annotated[
+        bool, typer.Option("--no-flip-x", help="不调转 X 轴（保持常规 +X 向右，此时为左手系）")
+    ] = False,
 ) -> None:
     """启动 Contactile PTS 的 Foxglove 触觉图像发布或 MCAP 录制。"""
-    cfg = PTSVisualizationConfig(contact_threshold_n=contact_threshold)
+    cfg = PTSVisualizationConfig(
+        contact_threshold_n=contact_threshold,
+        flip_x=not no_flip_x,
+    )
     code = run_foxglove_visualizer(
         port=port,
         baud_rate=baud_rate,

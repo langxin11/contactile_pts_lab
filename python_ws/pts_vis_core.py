@@ -50,6 +50,7 @@ class PTSVisualizationConfig:
         show_labels: 是否显示 P0~P8 标签。
         show_crosshair: 是否显示位移十字线。
         show_frame: 是否显示 +x/+y 坐标轴。
+        flip_x: 默认 True，使屏幕显示 +x 朝左、+y 朝上；在法向压缩 +z 朝向屏幕向里时满足右手直角坐标系。
     """
 
     enabled: bool = True
@@ -64,6 +65,7 @@ class PTSVisualizationConfig:
     show_labels: bool = True
     show_crosshair: bool = True
     show_frame: bool = True
+    flip_x: bool = True
 
     def __post_init__(self) -> None:
         """校验参数，避免后端绘制出负半径或除零。"""
@@ -128,20 +130,26 @@ class PillarGeometry:
     colors: np.ndarray
 
 
-def pillar_base_centers(spacing_mm: float = PILLAR_SPACING_MM) -> np.ndarray:
+def pillar_base_centers(
+    spacing_mm: float = PILLAR_SPACING_MM,
+    flip_x: bool = True,
+) -> np.ndarray:
     """返回 9 个 pillar 基底中心。
 
-    假设 P0~P8 在 sensor frame 下按行优先排列：P0 位于 (-s, +s)，P4 为中心。
-    该编号顺序需对照 PTS_2.1_SPEC Figure 3.1 核对，若不一致只需修改此函数。
+    P0~P8 在 sensor frame 下按行优先排列：
+    - flip_x=True (默认): +x 朝左，+y 朝上，P0 位于 (+s, +s) 即屏幕左上角。
+    - flip_x=False: +x 朝右，+y 朝上，P0 位于 (-s, +s)。
 
     Args:
         spacing_mm: pillar 中心距，单位 mm。
+        flip_x: 是否使用 +x 朝左坐标系（保持 +z 朝向屏幕向里时的右手系）。
 
     Returns:
         基底中心坐标，单位 mm，shape=(9, 2)。
     """
     s = float(spacing_mm)
-    return np.array([(x, y) for y in (s, 0.0, -s) for x in (-s, 0.0, s)], dtype=np.float64)
+    xs = (s, 0.0, -s) if flip_x else (-s, 0.0, s)
+    return np.array([(x, y) for y in (s, 0.0, -s) for x in xs], dtype=np.float64)
 
 
 def active_area_outline(config: PTSVisualizationConfig) -> np.ndarray:
@@ -203,7 +211,7 @@ def compute_pillar_geometry(frame: PTSFrame, config: PTSVisualizationConfig) -> 
     Returns:
         该帧的 pillar 几何。
     """
-    base = pillar_base_centers(config.pillar_spacing_mm)
+    base = pillar_base_centers(config.pillar_spacing_mm, flip_x=config.flip_x)
     tips = base + frame.displacements[:, :2] * config.displacement_gain
     # 只用压缩方向的 Fz；拉伸（负值）多为 bias 漂移，不应让圆变小于最小值
     fz = np.clip(frame.forces[:, 2], 0.0, None)
@@ -253,17 +261,18 @@ def frames_from_packet(packet: object) -> list[PTSFrame]:
     return frames
 
 
-def mock_frame(t_s: float, phase: float = 0.0) -> PTSFrame:
+def mock_frame(t_s: float, phase: float = 0.0, flip_x: bool = True) -> PTSFrame:
     """生成可复现的模拟帧：一个接触斑在阵列上画圈并周期性按压。
 
     Args:
         t_s: 时间，单位 s。
         phase: 相位偏移，单位 rad，用于让双路 mock 数据不完全相同。
+        flip_x: 是否使用 +x 朝左坐标系。
 
     Returns:
         模拟的单传感器帧。
     """
-    base = pillar_base_centers()
+    base = pillar_base_centers(flip_x=flip_x)
     center = 5.0 * np.array([np.cos(0.6 * t_s + phase), np.sin(0.6 * t_s + phase)])
     press = 0.5 * (1.0 - np.cos(1.5 * t_s + phase))  # 0~1 周期按压
     dist2 = np.sum((base - center) ** 2, axis=1)

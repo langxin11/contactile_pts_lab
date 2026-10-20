@@ -57,6 +57,8 @@ class PTSImageRenderer:
     def to_px(self, xy_mm: np.ndarray) -> np.ndarray:
         """sensor frame (mm, +y 向上) → 图像像素 (+y 向下)。
 
+        当 config.flip_x=True 时，+x 朝左，满足 +z 垂直屏幕向里时的空间右手系。
+
         Args:
             xy_mm: 坐标，单位 mm，shape=(..., 2)。
 
@@ -66,7 +68,10 @@ class PTSImageRenderer:
         xy = np.asarray(xy_mm, dtype=np.float64)
         c = self.size_px / 2.0
         px = np.empty_like(xy)
-        px[..., 0] = c + xy[..., 0] * self.px_per_mm
+        if self.config.flip_x:
+            px[..., 0] = c - xy[..., 0] * self.px_per_mm
+        else:
+            px[..., 0] = c + xy[..., 0] * self.px_per_mm
         px[..., 1] = c - xy[..., 1] * self.px_per_mm
         return np.rint(px).astype(np.int32)
 
@@ -80,7 +85,9 @@ class PTSImageRenderer:
         base_r = max(1, int(round(cfg.base_radius_mm * self.px_per_mm)))
         from pts_vis_core import pillar_base_centers  # 局部导入避免顶部列表过长
 
-        for i, center in enumerate(self.to_px(pillar_base_centers(cfg.pillar_spacing_mm))):
+        for i, center in enumerate(
+            self.to_px(pillar_base_centers(cfg.pillar_spacing_mm, flip_x=cfg.flip_x))
+        ):
             cv2.circle(img, tuple(int(v) for v in center), base_r, COLOR_BASE, 1, cv2.LINE_AA)
             if cfg.show_labels:
                 org = (int(center[0]) - base_r, int(center[1]) - base_r - 4)
@@ -89,16 +96,35 @@ class PTSImageRenderer:
                 )
 
         if cfg.show_frame:
-            corner = active_area_outline(cfg)[0]  # 左下角
-            origin = self.to_px(corner + np.array([-1.0, -1.0]))
             length = int(0.10 * self.size_px)
-            o = (int(origin[0]), int(origin[1]))
-            x_end, y_end = (o[0] + length, o[1]), (o[0], o[1] - length)
-            cv2.arrowedLine(img, o, x_end, COLOR_AXIS_X, 2, cv2.LINE_AA, tipLength=0.2)
-            cv2.arrowedLine(img, o, y_end, COLOR_AXIS_Y, 2, cv2.LINE_AA, tipLength=0.2)
             font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(img, "+x", (x_end[0] + 4, x_end[1] + 5), font, 0.45, COLOR_AXIS_X, 1)
-            cv2.putText(img, "+y", (y_end[0] - 8, y_end[1] - 6), font, 0.45, COLOR_AXIS_Y, 1)
+            if cfg.flip_x:
+                # 放在右下角，+X 朝左，+Y 朝上，满足右手直角坐标系
+                o = (int(0.86 * self.size_px), int(0.88 * self.size_px))
+                x_end = (o[0] - length, o[1])  # 箭头向左
+                y_end = (o[0], o[1] - length)  # 箭头向上
+                cv2.arrowedLine(img, o, x_end, COLOR_AXIS_X, 2, cv2.LINE_AA, tipLength=0.25)
+                cv2.arrowedLine(img, o, y_end, COLOR_AXIS_Y, 2, cv2.LINE_AA, tipLength=0.25)
+                cv2.putText(img, "+x", (x_end[0] - 22, x_end[1] + 5), font, 0.45, COLOR_AXIS_X, 1)
+                cv2.putText(img, "+y", (y_end[0] - 8, y_end[1] - 6), font, 0.45, COLOR_AXIS_Y, 1)
+                # 绘制 ⊗ 符号代表 +Z 垂直屏幕向里
+                cv2.circle(img, o, 4, COLOR_LABEL, 1, cv2.LINE_AA)
+                cv2.line(
+                    img, (o[0] - 3, o[1] - 3), (o[0] + 3, o[1] + 3), COLOR_LABEL, 1, cv2.LINE_AA
+                )
+                cv2.line(
+                    img, (o[0] - 3, o[1] + 3), (o[0] + 3, o[1] - 3), COLOR_LABEL, 1, cv2.LINE_AA
+                )
+                cv2.putText(img, "+z (in)", (o[0] - 20, o[1] + 16), font, 0.35, COLOR_LABEL, 1)
+            else:
+                corner = active_area_outline(cfg)[0]  # 左下角
+                origin = self.to_px(corner + np.array([-1.0, -1.0]))
+                o = (int(origin[0]), int(origin[1]))
+                x_end, y_end = (o[0] + length, o[1]), (o[0], o[1] - length)
+                cv2.arrowedLine(img, o, x_end, COLOR_AXIS_X, 2, cv2.LINE_AA, tipLength=0.2)
+                cv2.arrowedLine(img, o, y_end, COLOR_AXIS_Y, 2, cv2.LINE_AA, tipLength=0.2)
+                cv2.putText(img, "+x", (x_end[0] + 4, x_end[1] + 5), font, 0.45, COLOR_AXIS_X, 1)
+                cv2.putText(img, "+y", (y_end[0] - 8, y_end[1] - 6), font, 0.45, COLOR_AXIS_Y, 1)
 
         if self.title:
             cv2.putText(
