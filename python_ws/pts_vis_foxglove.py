@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import time
 from pathlib import Path
 from typing import Annotated
@@ -23,6 +22,7 @@ from foxglove.messages import CompressedImage, Timestamp
 
 from pts_protocol import PTSProtocolReader
 from pts_vis_core import (
+    DEFAULT_CONTACT_THRESHOLD_N,
     PTSFrame,
     PTSVisualizationConfig,
     frames_from_packet,
@@ -106,6 +106,9 @@ class FoxglovePTSLogger:
             本帧是否实际触发了图像渲染与发布。
         """
         topic_root = f"/tactile/{sensor_name}"
+        # 刻意用传感器 uptime 而非 wall clock 作为 log_time：多路帧与传感器时间轴
+        # 天然对齐、录包可复现；代价是 MCAP 显示 1970 起始时间，传感器重新上电后
+        # 时间戳回绕会非单调，且与 ros2_ws bag 的 wall-clock 基准不可直接对齐
         log_time_ns = max(0, int(frame.timestamp_us * US_TO_NS))
 
         state_ch = self._state_channels.get(sensor_name)
@@ -194,19 +197,49 @@ class FoxglovePTSLogger:
             self._mcap = None
 
 
+def _pack_panels(nodes: list[object], direction: str) -> object:
+    """递归把面板节点二分组装成均衡的行/列容器，单节点原样返回。
+
+    Args:
+        nodes: 面板 id 或已组装的容器节点列表，至少 1 个。
+        direction: 容器方向，``row`` 或 ``column``。
+
+    Returns:
+        Foxglove Layout 节点（面板 id 字符串或嵌套容器字典）。
+    """
+    if len(nodes) == 1:
+        return nodes[0]
+    mid = len(nodes) // 2
+    return {
+        "direction": direction,
+        "first": _pack_panels(nodes[:mid], direction),
+        "second": _pack_panels(nodes[mid:], direction),
+    }
+
+
 def build_foxglove_layout(
     sensor_names: tuple[str, ...] = (DEFAULT_SENSOR_NAME,),
 ) -> dict[str, object]:
     """生成可直接导入 Foxglove Studio 的布局字典（含触觉图像面板与三轴力曲线面板）。
 
+    单传感器时图像与曲线左右并排；多传感器时所有图像一行、所有曲线一行，
+    与 Rerun 双路 Blueprint 的行列结构保持一致。
+
     Args:
-        sensor_names: 传感器名称列表。
+        sensor_names: 传感器名称列表，至少 1 个。
 
     Returns:
         符合 Foxglove Layout JSON 规范的字典。
+
+    Raises:
+        ValueError: sensor_names 为空时抛出。
     """
+    if not sensor_names:
+        raise ValueError("sensor_names 至少包含 1 个传感器")
+
     config_by_id: dict[str, object] = {}
-    panels: list[str] = []
+    image_panels: list[str] = []
+    plot_panels: list[str] = []
     for name in sensor_names:
         img_id = f"Image!{name}"
         plot_id = f"Plot!{name}"
@@ -226,23 +259,15 @@ def build_foxglove_layout(
             "showLegend": True,
             "xAxisVal": "timestamp",
         }
-        panels.extend([img_id, plot_id])
+        image_panels.append(img_id)
+        plot_panels.append(plot_id)
 
-    layout: object = (
-        panels[0]
-        if len(panels) == 1
-        else {
-            "direction": "row",
-            "first": panels[0],
-            "second": panels[1]
-            if len(panels) == 2
-            else {
-                "direction": "row",
-                "first": panels[1],
-                "second": {"direction": "row", "first": panels[2], "second": panels[3]},
-            },
-        }
-    )
+    image_row = _pack_panels(image_panels, "row")
+    plot_row = _pack_panels(plot_panels, "row")
+    # 旧实现按面板数手写嵌套：双路时图像占 50%/25%、曲线各挤 12.5%，
+    # 3 路以上第 3 个传感器的面板会被静默丢弃；二分组装对任意数量都均衡且无遗漏
+    outer_direction = "row" if len(sensor_names) == 1 else "column"
+    layout = _pack_panels([image_row, plot_row], outer_direction)
     return {
         "configById": config_by_id,
         "globalVariables": {},
@@ -335,6 +360,9 @@ def run_foxglove_visualizer(
                 packet = reader.read_packet()
                 frames = frames_from_packet(packet)
                 for frame, name in zip(frames, sensor_names):
+                    if frame is None:
+                        # 异常传感器占位帧：跳过发布，但保持后续传感器与通道的配对
+                        continue
                     logger.log_tactile_frame(frame, sensor_name=name)
                 count += 1
     except PermissionError:
@@ -385,7 +413,7 @@ def main(
     ] = DEFAULT_IMAGE_HZ,
     contact_threshold: Annotated[
         float, typer.Option("--contact-threshold", help="接触力阈值 (N)")
-    ] = 0.2,
+    ] = DEFAULT_CONTACT_THRESHOLD_N,
     no_flip_x: Annotated[
         bool, typer.Option("--no-flip-x", help="不调转 X 轴（保持常规 +X 向右，此时为左手系）")
     ] = False,
@@ -413,7 +441,4 @@ def main(
 
 
 if __name__ == "__main__":
-    try:
-        app()
-    except SystemExit as exc:
-        sys.exit(exc.code)
+    app()

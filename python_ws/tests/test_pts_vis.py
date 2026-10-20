@@ -156,6 +156,21 @@ def test_frames_from_packet_converts_dual_sensors() -> None:
     assert len(frames) == 2
     assert pytest.approx(frames[1].global_force[2]) == 1.0
 
+    # 第 1 路 pillar 数异常时应占位 None 并告警，而不是把第 2 路数据前移错配
+    pkt_bad = ParsedPacket(
+        packet_counter=2,
+        timestamp_us=6000,
+        pillar_forces=[np.zeros((8, 3)), np.ones((9, 3))],
+        pillar_displacements=[np.zeros((8, 3)), np.zeros((9, 3))],
+        global_forces=[np.zeros(3), np.ones(3)],
+        global_torques=[np.zeros(3), np.zeros(3)],
+    )
+    with pytest.warns(RuntimeWarning, match="pillar 数异常"):
+        frames_bad = frames_from_packet(pkt_bad)
+    assert frames_bad[0] is None
+    assert frames_bad[1] is not None
+    assert pytest.approx(frames_bad[1].global_force[2]) == 1.0
+
 
 def test_rerun_logger_entity_path_isolation_and_blueprint() -> None:
     """RerunLogger 应支持单/双路 Blueprint，并按 entity_path 隔离左右传感器图层。"""
@@ -224,6 +239,37 @@ def test_image_renderer_and_foxglove_mcap_throttling(tmp_path: pathlib.Path) -> 
     layout = build_foxglove_layout(("sen0", "sen1"))
     assert "Image!sen0" in layout["configById"]
     assert "Plot!sen1" in layout["configById"]
+
+
+def _collect_layout_panels(node: object, acc: set[str]) -> None:
+    """递归收集布局树中实际挂载的面板 id。"""
+    if isinstance(node, str):
+        acc.add(node)
+    elif isinstance(node, dict):
+        _collect_layout_panels(node["first"], acc)
+        _collect_layout_panels(node["second"], acc)
+
+
+def test_foxglove_layout_covers_all_panels_for_any_sensor_count() -> None:
+    """任意数量传感器的面板都应挂进布局树，双路应为均衡的图像行 + 曲线行。"""
+    for names in (("sen0",), ("sen0", "sen1"), ("a", "b", "c"), ("a", "b", "c", "d")):
+        layout = build_foxglove_layout(names)
+        used: set[str] = set()
+        _collect_layout_panels(layout["layout"], used)
+        assert used == set(layout["configById"].keys()), names
+
+    dual = build_foxglove_layout(("sen0", "sen1"))
+    assert dual["layout"] == {
+        "direction": "column",
+        "first": {"direction": "row", "first": "Image!sen0", "second": "Image!sen1"},
+        "second": {"direction": "row", "first": "Plot!sen0", "second": "Plot!sen1"},
+    }
+    single = build_foxglove_layout(("sen0",))
+    assert single["layout"] == {
+        "direction": "row",
+        "first": "Image!sen0",
+        "second": "Plot!sen0",
+    }
 
 
 def test_cli_mock_runs_offline(tmp_path: pathlib.Path) -> None:

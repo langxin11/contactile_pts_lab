@@ -7,6 +7,7 @@ Rerun 矢量图层与 Foxglove 触觉图像共用同一套“物理量 → 视�
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
@@ -239,16 +240,20 @@ def crosshair_segments(tip_centers: np.ndarray, half_mm: float) -> np.ndarray:
     return np.asarray(segments, dtype=np.float64).reshape(-1, 2, 2)
 
 
-def frames_from_packet(packet: object) -> list[PTSFrame]:
+def frames_from_packet(packet: object) -> list[PTSFrame | None]:
     """把 papillarray_pts.ParsedPacket 拆成每个传感器一帧。
 
     Args:
         packet: ``ParsedPacket``，用鸭子类型以免核心模块依赖协议包。
 
     Returns:
-        每个传感器一个 ``PTSFrame``；pillar 数不为 9 的传感器被跳过。
+        每个传感器一个条目，与传感器索引位置对齐；pillar 数不为 9 的
+        传感器对应位置为 ``None`` 占位。
+
+    Raises:
+        RuntimeWarning: 某个传感器 pillar 数异常时通过 ``warnings`` 告警。
     """
-    frames: list[PTSFrame] = []
+    frames: list[PTSFrame | None] = []
     for disp, force, gforce, gtorque in zip(
         packet.pillar_displacements,
         packet.pillar_forces,
@@ -256,6 +261,15 @@ def frames_from_packet(packet: object) -> list[PTSFrame]:
         packet.global_torques,
     ):
         if np.shape(disp)[0] != PTS_N_PILLARS:
+            # 协议错位时占位 None 而不是删除元素：调用方按位置 zip 配对
+            # entity_path/topic，删除元素会把后续传感器数据错配到前一个通道
+            warnings.warn(
+                f"跳过 pillar 数异常的传感器（期望 {PTS_N_PILLARS}，"
+                f"实际 {np.shape(disp)[0]}），该通道本轮不发布",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            frames.append(None)
             continue
         frames.append(PTSFrame(packet.timestamp_us, disp, force, gforce, gtorque))
     return frames

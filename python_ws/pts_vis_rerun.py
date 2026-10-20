@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import os
-import sys
 import time
 from pathlib import Path
 from typing import Annotated
@@ -23,6 +22,7 @@ from pts_vis_core import (
     COLOR_CROSSHAIR,
     COLOR_LABEL,
     COLOR_OUTLINE,
+    DEFAULT_CONTACT_THRESHOLD_N,
     PTS_N_PILLARS,
     PTSFrame,
     PTSVisualizationConfig,
@@ -42,8 +42,6 @@ DEFAULT_ENTITY_PATH = "tactile/sen0"
 DEFAULT_DUAL_PATHS = ("tactile/sen0", "tactile/sen1")
 DEFAULT_MOCK_HZ = 60.0
 DEFAULT_MOCK_FRAMES = 180
-# Rerun Spatial2DView 默认 +y 向下，翻转 y 轴使屏幕上方对应 sensor frame +y
-RERUN_Y_FLIP = np.array([1.0, -1.0], dtype=np.float64)
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -387,6 +385,9 @@ def run_rerun_visualizer(
                 packet = reader.read_packet()
                 frames = frames_from_packet(packet)
                 for frame, path in zip(frames, sensor_paths):
+                    if frame is None:
+                        # 异常传感器占位帧：跳过发布，但保持后续传感器与路径的配对
+                        continue
                     logger.log_tactile_frame(frame, entity_path=path)
                 count += 1
     except PermissionError:
@@ -426,7 +427,7 @@ def main(
     ] = False,
     contact_threshold: Annotated[
         float, typer.Option("--contact-threshold", help="接触力阈值 (N)")
-    ] = 0.2,
+    ] = DEFAULT_CONTACT_THRESHOLD_N,
     no_flip_x: Annotated[
         bool, typer.Option("--no-flip-x", help="不调转 X 轴（保持常规 +X 向右，此时为左手系）")
     ] = False,
@@ -451,7 +452,4 @@ def main(
 
 
 if __name__ == "__main__":
-    try:
-        app()
-    except SystemExit as exc:
-        sys.exit(exc.code)
+    app()
