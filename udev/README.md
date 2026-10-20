@@ -43,8 +43,27 @@ sudo usermod -aG dialout $USER
 插入设备后执行：
 
 ```bash
-ls -la /dev/ttyACM*
+ls -la /dev/ttyACM* /dev/contactile_pts
 # 期望输出: crw-rw---- 1 root dialout ... /dev/ttyACM0
+#           lrwxrwxrwx ... /dev/contactile_pts -> ttyACM0
 ```
 
-如果看到 `dialout` 组且有读写权限，说明规则生效。
+如果看到 `dialout` 组且有读写权限、软链接存在，说明规则生效。
+
+再确认 ModemManager 已跳过该设备（否则插入后数秒内开串口可能被探测抢占）：
+
+```bash
+udevadm info -a -n /dev/ttyACM0 | grep ID_MM_DEVICE_IGNORE
+# 期望输出: ATTRS{...} 或 ENV{ID_MM_DEVICE_IGNORE}=="1"
+```
+
+## 规则内容说明
+
+| 规则 | 匹配硬件 | 作用 |
+|------|----------|------|
+| Teensy `16c0:0483` | 实测的 PTS 控制器（Teensyduino Serial） | 权限 + 固定软链接 + ModemManager 排除 |
+| CH340 `1a86:7523` | 旧版 DEV001 转串口 | 同上 |
+| 通用 `ttyACM*` | 兜底 | 仅权限，不排除 ModemManager（避免误伤真正的调制解调器） |
+
+> 注意：`16c0:0483` 是所有 Teensyduino 固件的通用 ID，若同机使用其他 Teensy 板，
+> 该规则同样会创建 `/dev/contactile_pts` 软链接。
