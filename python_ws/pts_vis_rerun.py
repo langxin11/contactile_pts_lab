@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import os
 import time
 from pathlib import Path
 from typing import Annotated
@@ -13,6 +12,7 @@ import rerun as rr
 import rerun.blueprint as rrb
 import serial
 import typer
+from papillarray_pts.serial_worker import BACKLOG_DRAIN_GRACE_SEC
 
 from pts_protocol import PTSProtocolReader
 from pts_vis_core import (
@@ -34,6 +34,7 @@ from pts_vis_core import (
     pillar_base_centers,
 )
 from pts_vis_image import PTSImageRenderer
+from serial_utils import DEFAULT_WAIT_SEC, wait_for_serial_device
 
 DEFAULT_PORT = "/dev/ttyACM0"
 DEFAULT_BAUD_RATE = 115200
@@ -352,8 +353,11 @@ def run_rerun_visualizer(
         进程退出码，0 表示正常结束。
     """
     sensor_paths = DEFAULT_DUAL_PATHS if dual else (DEFAULT_ENTITY_PATH,)
-    if not mock and not os.path.exists(port):
-        typer.secho(f"错误: 串口设备不存在: {port}", err=True)
+    if not mock and not wait_for_serial_device(port, DEFAULT_WAIT_SEC):
+        typer.secho(
+            f"错误: 串口设备 {port} 在 {DEFAULT_WAIT_SEC:.1f} s 内未出现，请检查连接和权限",
+            err=True,
+        )
         return 1
 
     logger = RerunLogger(
@@ -378,6 +382,10 @@ def run_rerun_visualizer(
             return 0
 
         with serial.Serial(port=port, baudrate=baud_rate, timeout=timeout_sec) as ser:
+            # 旧会话帧滞留在设备端发送缓冲（实测可陈旧达 40 s），打开后几 ms 才涌入内核；
+            # 静默后清空，保证录制从本次会话的数据开始（同 pts_protocol_compare 的中继清理）
+            time.sleep(BACKLOG_DRAIN_GRACE_SEC)
+            ser.reset_input_buffer()
             reader = PTSProtocolReader(ser)
             typer.echo(f"已连接 {port} ({baud_rate} baud)，开始推送到 Rerun...")
             count = 0
