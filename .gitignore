@@ -41,3 +41,4 @@ Thumbs.db
 .uv/
 docs/_build/
 ros2_ws/Logs/
+python_ws/Logs/
