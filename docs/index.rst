@@ -9,6 +9,7 @@ Ubuntu 24.04 x86_64 环境下 Contactile PTS（PapillArray）触觉传感器的�
    :caption: 阶段一：传感器 SDK 使用与基准建立
 
    notes/sensor_overview
+   notes/usb_connection_timing
    notes/cpp_sdk_guide
    notes/python_sdk_guide
    notes/ros2_integration
