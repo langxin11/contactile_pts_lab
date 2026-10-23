@@ -6,7 +6,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 添加原厂 SDK 头文件路径
 set(VENDOR_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/../vendor/C++LIN/Include")
-set(VENDOR_LIB_DIR "${CMAKE_SOURCE_DIR}/../vendor/C++LIN/Library")
+set(VENDOR_LIB_DIR
+    "${CMAKE_SOURCE_DIR}/../vendor/C++LIN/Library"
+    "${CMAKE_SOURCE_DIR}/../ros2_ws/src/papillarray_ros2_v2/lib"
+)
 
 include_directories(${VENDOR_INCLUDE_DIR})
 link_directories(${VENDOR_LIB_DIR})
